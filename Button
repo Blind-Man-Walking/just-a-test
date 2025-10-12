@@ -1,22 +1,21 @@
---- Creates a new button with an optional icon.
+--- Creates a new button.
+-- Requires: 'create' function, BORDER_COLOR variable, self.window.CurrentThemeColor, self.window.animatedGradients.
 function BlindHubsUiLibrary:AddButton(options)
-    local text, icon, arrow
+    local text = "Button"
     if type(options) == "string" then
         text = options
     else
         options = options or {}
         text = options.Text or "Button"
-        icon = options.Icon
-        arrow = options.Arrow 
     end
 
     local baseColor = Color3.fromRGB(65, 65, 65)
     local button = create("TextButton", {
-        Name = text .. "_Button", Text = text, Size = UDim2.new(1, 0, 0, 30), BackgroundColor3 = baseColor,
+        Name = text .. "_Button", Text = text, Size = UDim2.new(1, 0, 0, 22), BackgroundColor3 = baseColor,
         Font = Enum.Font.SourceSans, TextColor3 = Color3.fromRGB(225, 225, 225), TextSize = 14,
+        TextXAlignment = Enum.TextXAlignment.Left,
         Parent = self.page
     })
-    table.insert(self.window.themeableBackgrounds, {Object = button, BaseColor = baseColor})
 
     create("UICorner", { CornerRadius = UDim.new(0.5, 0), Parent = button })
     create("UIPadding", { PaddingLeft = UDim.new(0, 10), Parent = button })
@@ -31,26 +30,13 @@ function BlindHubsUiLibrary:AddButton(options)
         Rotation = 0, Parent = buttonStroke
     })
     table.insert(self.window.animatedGradients, buttonGradient)
-
-    if icon or arrow then 
-        button.TextXAlignment = Enum.TextXAlignment.Left
-        if icon then
-            create("ImageLabel", {
-                Name = "IconImage", Size = UDim2.new(0, 20, 0, 20), Position = UDim2.new(1, -15, 0.5, 0),
-                AnchorPoint = Vector2.new(1, 0.5), BackgroundTransparency = 1, Image = "rbxassetid://6030372330",
-                ImageColor3 = Color3.fromRGB(255, 255, 255), Parent = button
-            })
-        elseif arrow then
-            create("TextLabel", {
-                Name = "ArrowLabel", Size = UDim2.new(0, 20, 1, 0), Position = UDim2.new(1, -15, 0.5, 0),
-                AnchorPoint = Vector2.new(1, 0.5), BackgroundTransparency = 1, Text = ">",
-                Font = Enum.Font.SourceSansBold, TextColor3 = Color3.fromRGB(225, 225, 225), TextSize = 16,
-                Parent = button
-            })
-        end
-    else
-        button.TextXAlignment = Enum.TextXAlignment.Center
-    end
+    
+    create("TextLabel", {
+        Name = "ArrowLabel", Size = UDim2.new(0, 20, 1, 0), Position = UDim2.new(1, -15, 0.5, 0),
+        AnchorPoint = Vector2.new(1, 0.5), BackgroundTransparency = 1, Text = ">",
+        Font = Enum.Font.SourceSansBold, TextColor3 = Color3.fromRGB(225, 225, 225), TextSize = 16,
+        Parent = button
+    })
 
     return button
 end
