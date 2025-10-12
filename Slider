@@ -1,17 +1,15 @@
---- Creates a new, compact single-bar slider.
+--- Creates a new slider.
+-- Requires: 'create' function, BORDER_COLOR variable, self.window.CurrentThemeColor, self.window.animatedGradients, self.window.staticThemeElements, self.window.elementsToSave, and a 'CreateNotification' function for errors.
 function BlindHubsUiLibrary:AddSlider(options)
     options = options or {}
     local text = options.Text or "Slider"
     local min = options.Min or 0
     local max = options.Max or 100
     local default = options.Default or min
-    local linkedToggle = options.Toggle -- Get the linked toggle from options
+    local uniqueId = (self.tabName or "Window") .. "_" .. text
 
     local baseColor = Color3.fromRGB(65, 65, 65)
-    local sliderFrame = create("Frame", {
-        Name = text .. "_Slider", Size = UDim2.new(1, 0, 0, 30), BackgroundColor3 = baseColor, Parent = self.page
-    })
-    table.insert(self.window.themeableBackgrounds, {Object = sliderFrame, BaseColor = baseColor})
+    local sliderFrame = create("Frame", { Name = text .. "_Slider", Size = UDim2.new(1, 0, 0, 25), BackgroundColor3 = baseColor, Parent = self.page })
 
     create("UICorner", { CornerRadius = UDim.new(0.5, 0), Parent = sliderFrame })
     local sliderStroke = create("UIStroke", { Color = Color3.new(1, 1, 1), Thickness = 2, Parent = sliderFrame })
@@ -26,23 +24,12 @@ function BlindHubsUiLibrary:AddSlider(options)
     table.insert(self.window.animatedGradients, sliderGradient)
 
     local state = create("NumberValue", { Name = "State", Value = default, Parent = sliderFrame })
+    self.window.elementsToSave[uniqueId] = { element = sliderFrame, type = "Slider" }
 
-    local valueLabel = create("TextLabel", {
-        Name = "ValueLabel", Position = UDim2.fromOffset(5, 5), Size = UDim2.fromOffset(40, 20), BackgroundTransparency = 1,
-        Font = Enum.Font.SourceSansBold, Text = tostring(default), TextColor3 = Color3.fromRGB(225, 225, 225), TextSize = 14,
-        TextXAlignment = Enum.TextXAlignment.Center, Parent = sliderFrame
-    })
-
-    local sliderLabel = create("TextLabel", {
-        Name = "Label", Position = UDim2.new(1, 0, 0.5, 0), AnchorPoint = Vector2.new(1, 0.5), Size = UDim2.new(0, 100, 1, 0),
-        BackgroundTransparency = 1, Font = Enum.Font.SourceSans, Text = text, TextColor3 = Color3.fromRGB(225, 225, 225),
-        TextSize = 14, TextXAlignment = Enum.TextXAlignment.Center, Parent = sliderFrame
-    })
-
-    local track = create("Frame", {
-        Name = "Track", Position = UDim2.fromOffset(50, 12), Size = UDim2.new(1, -185, 0, 6),
-        AnchorPoint = Vector2.new(0, 0.5), BackgroundColor3 = Color3.fromRGB(45, 45, 45), Parent = sliderFrame
-    })
+    local valueBox = create("TextBox", { Name = "ValueBox", Position = UDim2.new(0, 5, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5), Size = UDim2.fromOffset(40, 20), BackgroundTransparency = 1, Font = Enum.Font.SourceSansBold, Text = tostring(default), TextColor3 = Color3.fromRGB(225, 225, 225), TextSize = 14, ClearTextOnFocus = false, TextXAlignment = Enum.TextXAlignment.Center, Parent = sliderFrame })
+    local sliderLabel = create("TextLabel", { Name = "Label", Position = UDim2.new(1, 0, 0.5, 0), AnchorPoint = Vector2.new(1, 0.5), Size = UDim2.new(0, 100, 1, 0), BackgroundTransparency = 1, Font = Enum.Font.SourceSans, Text = text, TextColor3 = Color3.fromRGB(225, 225, 225), TextSize = 14, TextXAlignment = Enum.TextXAlignment.Center, Parent = sliderFrame })
+    
+    local track = create("Frame", { Name = "Track", Position = UDim2.fromOffset(50, 12), Size = UDim2.new(1, -185, 0, 6), AnchorPoint = Vector2.new(0, 0.5), BackgroundColor3 = Color3.fromRGB(45, 45, 45), Parent = sliderFrame })
     create("UICorner", { CornerRadius = UDim.new(0.5, 0), Parent = track })
     create("UIStroke", { Color = BORDER_COLOR, Thickness = 1.5, Parent = track })
 
@@ -53,52 +40,32 @@ function BlindHubsUiLibrary:AddSlider(options)
     local knob = create("TextButton", { Name = "Knob", Size = UDim2.fromOffset(14, 14), Position = UDim2.new((default - min) / (max - min), 0, 0.5, 0), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = Color3.fromRGB(225, 225, 225), Parent = track, ZIndex = 2, Text = "" })
     create("UICorner", { CornerRadius = UDim.new(0.5, 0), Parent = knob })
 
+    valueBox.FocusLost:Connect(function(enterPressed)
+        if enterPressed then
+            local num = tonumber(valueBox.Text)
+            if num then state.Value = math.clamp(num, min, max) else CreateNotification("Invalid Input", "Please enter a valid number.", 3) end
+        end
+        valueBox.Text = tostring(state.Value)
+    end)
+
     knob.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            local inputChangedConnection, inputEndedConnection
-            local function updateSlider(inputObject)
-                local x = math.clamp(inputObject.Position.X - track.AbsolutePosition.X, 0, track.AbsoluteSize.X)
-                local percent = x / track.AbsoluteSize.X
-                local value = math.floor((min + (max - min) * percent) + 0.5)
-                state.Value = value
+            local changedConn, endedConn
+            local function updateSlider(inputObj)
+                local x = math.clamp(inputObj.Position.X - track.AbsolutePosition.X, 0, track.AbsoluteSize.X)
+                state.Value = math.floor((min + (max - min) * (x / track.AbsoluteSize.X)) + 0.5)
             end
             updateSlider(input)
-            inputChangedConnection = UserInputService.InputChanged:Connect(function(inputObject)
-                if inputObject.UserInputType == Enum.UserInputType.MouseMovement or inputObject.UserInputType == Enum.UserInputType.Touch then
-                    updateSlider(inputObject)
-                end
-            end)
-            inputEndedConnection = UserInputService.InputEnded:Connect(function(inputObject)
-                if inputObject.UserInputType == Enum.UserInputType.MouseButton1 or inputObject.UserInputType == Enum.UserInputType.Touch then
-                    inputChangedConnection:Disconnect()
-                    inputEndedConnection:Disconnect()
-                end
-            end)
+            changedConn = UserInputService.InputChanged:Connect(function(inp) if inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch then updateSlider(inp) end end)
+            endedConn = UserInputService.InputEnded:Connect(function(inp) if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then changedConn:Disconnect(); endedConn:Disconnect() end end)
         end
     end)
 
     state.Changed:Connect(function(newValue)
-        valueLabel.Text = tostring(newValue)
+        valueBox.Text = tostring(newValue)
         local percent = (newValue - min) / (max - min)
-        local newPos = UDim2.new(percent, 0, 0.5, 0)
         fill:TweenSize(UDim2.new(percent, 0, 1, 0), Enum.EasingDirection.Out, Enum.EasingStyle.Sine, 0.1, true)
-        knob:TweenPosition(newPos, Enum.EasingDirection.Out, Enum.EasingStyle.Sine, 0.1, true)
+        knob:TweenPosition(UDim2.new(percent, 0, 0.5, 0), Enum.EasingDirection.Out, Enum.EasingStyle.Sine, 0.1, true)
     end)
-    
-    -- ==================== [NEW CODE START] ====================
-    -- If a toggle is linked, manage visibility based on its state.
-    if linkedToggle and linkedToggle:FindFirstChild("State") then
-        local toggleState = linkedToggle:FindFirstChild("State")
-
-        -- Set initial visibility based on the toggle's current state
-        sliderFrame.Visible = toggleState.Value
-
-        -- Connect to the toggle's Changed event to update visibility
-        toggleState.Changed:Connect(function(newValue)
-            sliderFrame.Visible = newValue
-        end)
-    end
-    -- ===================== [NEW CODE END] =====================
-
     return sliderFrame
 end
