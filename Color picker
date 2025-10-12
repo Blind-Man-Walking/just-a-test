@@ -1,0 +1,87 @@
+--- Creates a new color picker element with HSV controls.
+function BlindHubsUiLibrary:AddColorPicker(options)
+    options = options or {}
+    local text = options.Text or "Color Picker"
+    local defaultColor = options.Default or Color3.new(1, 1, 1)
+    local uniqueId = (self.tabName or "Window") .. "_" .. text
+
+    local pickerFrame = create("Frame", { Name = text .. "_ColorPicker", Size = UDim2.new(1, 0, 0, 22), BackgroundColor3 = Color3.fromRGB(45, 45, 45), Parent = self.page, ZIndex = 4 })
+    
+    create("UICorner", { CornerRadius = UDim.new(0.5, 0), Parent = pickerFrame })
+    local frameStroke = create("UIStroke", { Color = Color3.new(1, 1, 1), Thickness = 2, Parent = pickerFrame })
+    local frameGradient = create("UIGradient", { Color = ColorSequence.new({ ColorSequenceKeypoint.new(0, BORDER_COLOR), ColorSequenceKeypoint.new(0.5, self.window.CurrentThemeColor), ColorSequenceKeypoint.new(1, BORDER_COLOR) }), Rotation = 0, Parent = frameStroke })
+    table.insert(self.window.animatedGradients, frameGradient)
+
+    create("TextLabel", { Name = "Label", Position = UDim2.fromOffset(15, 0), Size = UDim2.new(0.6, 0, 1, 0), BackgroundTransparency = 1, Font = Enum.Font.SourceSans, Text = text, TextColor3 = Color3.fromRGB(225, 225, 225), TextSize = 14, TextXAlignment = Enum.TextXAlignment.Left, Parent = pickerFrame })
+    
+    local colorPreview = create("TextButton", { Name = "ColorPreview", Size = UDim2.new(0, 50, 0, 16), Position = UDim2.new(1, -15, 0.5, 0), AnchorPoint = Vector2.new(1, 0.5), BackgroundColor3 = defaultColor, Text = "", Parent = pickerFrame })
+    create("UICorner", { CornerRadius = UDim.new(0.3, 0), Parent = colorPreview })
+    create("UIStroke", { Color = BORDER_COLOR, Thickness = 1.5, Parent = colorPreview })
+
+    local state = create("Color3Value", { Name = "State", Value = defaultColor, Parent = pickerFrame })
+    self.window.elementsToSave[uniqueId] = { element = pickerFrame, type = "ColorPicker" }
+
+    local colorPickerPopup = create("Frame", { Name = "ColorPickerPopup", Size = UDim2.fromOffset(200, 150), Position = UDim2.new(0.5, 0, 1, 10), AnchorPoint = Vector2.new(0.5, 0), BackgroundColor3 = Color3.fromRGB(45, 45, 45), BorderSizePixel = 0, Visible = false, ClipsDescendants = true, Parent = pickerFrame, ZIndex = 5 })
+    create("UICorner", { CornerRadius = UDim.new(0, 8), Parent = colorPickerPopup })
+    local popupStroke = create("UIStroke", { Color = self.window.CurrentThemeColor, Thickness = 2, Parent = colorPickerPopup })
+    table.insert(self.window.staticThemeElements, { Object = popupStroke, Property = "Color" })
+    
+    local svBox = create("Frame", { Name = "SVBox", Size = UDim2.fromOffset(150, 120), Position = UDim2.fromOffset(10, 10), BackgroundColor3 = Color3.fromHSV(0, 1, 1), BorderSizePixel = 0, Parent = colorPickerPopup })
+    create("UIGradient", { Name = "SaturationGradient", Rotation = 90, Color = ColorSequence.new(Color3.new(1,1,1)), Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0,0),NumberSequenceKeypoint.new(1,1)}), Parent = svBox })
+    create("UIGradient", { Name = "ValueGradient", Rotation = 180, Color = ColorSequence.new(Color3.new(0,0,0)), Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0,0),NumberSequenceKeypoint.new(1,1)}), Parent = svBox })
+    local svKnob = create("Frame", { Name = "SVKnob", Size = UDim2.fromOffset(10, 10), BackgroundColor3 = Color3.new(1,1,1), BorderSizePixel = 1, BorderColor3 = Color3.new(0,0,0), ZIndex = 6, Parent = svBox })
+    create("UICorner", { CornerRadius = UDim.new(0.5, 0), Parent = svKnob })
+
+    local hueSlider = create("Frame", { Name = "HueSlider", Size = UDim2.fromOffset(20, 120), Position = UDim2.new(1, -20, 0, 10), AnchorPoint = Vector2.new(1, 0), BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0, Parent = colorPickerPopup })
+    local hueGradient = create("UIGradient", { Name = "HueGradient", Parent = hueSlider })
+    local hueColors = {}
+    for i = 0, 19 do table.insert(hueColors, ColorSequenceKeypoint.new(i / 19, Color3.fromHSV(i / 19, 1, 1))) end
+    hueGradient.Color = ColorSequence.new(hueColors)
+    local hueKnob = create("Frame", { Name = "HueKnob", Size = UDim2.new(1, 4, 0, 8), Position = UDim2.new(0.5, 0, 0, 0), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = Color3.new(1,1,1), BorderSizePixel = 1, BorderColor3 = Color3.new(0,0,0), ZIndex = 6, Parent = hueSlider })
+
+    local h, s, v = 0, 1, 1
+    local function updateColor()
+        local newColor = Color3.fromHSV(h, s, v)
+        state.Value = newColor
+        colorPreview.BackgroundColor3 = newColor
+        svKnob.BackgroundColor3 = newColor
+        svBox.BackgroundColor3 = Color3.fromHSV(h, 1, 1)
+    end
+    
+    local defaultH, defaultS, defaultV = defaultColor:ToHSV(); h, s, v = defaultH, defaultS, defaultV
+    svKnob.Position = UDim2.fromScale(s, 1 - v); hueKnob.Position = UDim2.fromScale(0.5, h); updateColor()
+
+    local function setupInput(frame, knob, isHueSlider, callback)
+        frame.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                local changedConn, endedConn
+                local function handleInput(inp)
+                    local x = math.clamp((inp.Position.X - frame.AbsolutePosition.X) / frame.AbsoluteSize.X, 0, 1)
+                    local y = math.clamp((inp.Position.Y - frame.AbsolutePosition.Y) / frame.AbsoluteSize.Y, 0, 1)
+                    if isHueSlider then callback(y); knob.Position = UDim2.fromScale(0.5, y) else callback(x, 1 - y); knob.Position = UDim2.fromScale(x, y) end
+                    updateColor()
+                end
+                handleInput(input)
+                changedConn = UserInputService.InputChanged:Connect(function(inp) if inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch then handleInput(inp) end end)
+                endedConn = UserInputService.InputEnded:Connect(function(inp) if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then if changedConn then changedConn:Disconnect() end; if endedConn then endedConn:Disconnect() end end end)
+            end
+        end)
+    end
+
+    setupInput(svBox, svKnob, false, function(newS, newV) s, v = newS, newV end)
+    setupInput(hueSlider, hueKnob, true, function(newH) h = newH end)
+
+    colorPreview.MouseButton1Click:Connect(function()
+        colorPickerPopup.Visible = not colorPickerPopup.Visible
+        pickerFrame.ZIndex = colorPickerPopup.Visible and 5 or 4
+        if colorPickerPopup.Visible then
+            local currentH, currentS, currentV = state.Value:ToHSV(); h,s,v = currentH, currentS, currentV
+            svKnob.Position = UDim2.fromScale(s, 1 - v); hueKnob.Position = UDim2.fromScale(0.5, h)
+            updateColor()
+        end
+    end)
+
+    state.Changed:Connect(function(newColor) colorPreview.BackgroundColor3 = newColor end)
+
+    return pickerFrame
+end
