@@ -1,20 +1,26 @@
 --- Creates a new tab and its corresponding content page.
+-- Requires: 'create' function, BORDER_COLOR, and the main window's properties (e.g., self.TabContainer, self.ContentContainer).
 function BlindHubsUiLibrary:AddTab(tabName)
+    -- Close any open dropdowns when switching to a new tab during creation
     if self.activeTab then
-        local oldTabBaseColor = self.activeTab:GetAttribute("BaseColor")
-        if oldTabBaseColor then
-            if self:GetThemeName() == "Black" then
-                self.activeTab.BackgroundColor3 = oldTabBaseColor
-            else
-                self.activeTab.BackgroundColor3 = oldTabBaseColor:Lerp(Themes[self:GetThemeName()], 0.15)
-            end
-        end
+		for _, dropdown in ipairs(self.allDropdowns) do
+			dropdown.close()
+		end
     end
 
+    -- Create the tab button on the left
     local baseColor = Color3.fromRGB(65, 65, 65)
-    local tabButton = create("TextButton", { Name = tabName, Text = tabName, Size = UDim2.fromOffset(94, 28), BackgroundColor3 = baseColor, Font = Enum.Font.SourceSans, TextColor3 = Color3.fromRGB(225, 225, 225), TextSize = 14, Parent = self.TabContainer })
+    local tabButton = create("TextButton", { 
+        Name = tabName, 
+        Text = tabName, 
+        Size = UDim2.fromOffset(94, 28), 
+        BackgroundColor3 = baseColor, 
+        Font = Enum.Font.SourceSans, 
+        TextColor3 = Color3.fromRGB(225, 225, 225), 
+        TextSize = 14, 
+        Parent = self.TabContainer 
+    })
     tabButton:SetAttribute("BaseColor", baseColor)
-    table.insert(self.themeableBackgrounds, {Object = tabButton, BaseColor = baseColor})
 
     create("UICorner", { CornerRadius = UDim.new(0.5, 0), Parent = tabButton })
     local tabStroke = create("UIStroke", { Color = Color3.new(1, 1, 1), Thickness = 2, ApplyStrokeMode = Enum.ApplyStrokeMode.Border, Parent = tabButton })
@@ -29,57 +35,69 @@ function BlindHubsUiLibrary:AddTab(tabName)
     })
     table.insert(self.animatedGradients, tabGradient)
 
-    local contentPage = create("Frame", { Name = tabName .. "_Page", Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, Parent = self.ContentContainer, Visible = true })
+    -- Create the content page on the right
+    local contentPage = create("Frame", { 
+        Name = tabName .. "_Page", 
+        Size = UDim2.new(1, 0, 1, 0), 
+        BackgroundTransparency = 1, 
+        Parent = self.ContentContainer, 
+        Visible = false 
+    })
     
-    local listLayout = create("UIListLayout", { Parent = contentPage, Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder })
-    local tabObject = { page = contentPage, window = self }
+    local listLayout = create("UIListLayout", { 
+        Parent = contentPage, 
+        Padding = UDim.new(0, 8), 
+        SortOrder = Enum.SortOrder.LayoutOrder, 
+        HorizontalAlignment = Enum.HorizontalAlignment.Left 
+    })
+    
+    -- Create the tab object that you will add elements to
+    local tabObject = {
+        page = contentPage,
+        window = self,
+        isTab = true,
+        pages = {},
+        pageStack = {self}, -- For page navigation
+        tabName = tabName
+    }
+    tabObject.rootPage = tabObject
     setmetatable(tabObject, BlindHubsUiLibrary)
-
-    local function updateCanvasSize()
-        self.ContentContainer.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y)
-    end
-
-    listLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateCanvasSize)
-
-    contentPage:GetPropertyChangedSignal("Visible"):Connect(function()
+    
+    -- Auto-resizing logic for the scrolling frame
+	local contentPadding = self.ContentContainer:FindFirstChildOfClass("UIPadding")
+    listLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
         if contentPage.Visible then
-            task.defer(updateCanvasSize)
+            self.ContentContainer.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y + contentPadding.PaddingTop.Offset + contentPadding.PaddingBottom.Offset)
         end
     end)
-
-    self.activeTab = tabButton
-    self.pages[tabButton] = tabObject.page
-
-    for button, page in pairs(self.pages) do
-        page.Visible = (button == tabButton)
+    
+    -- Tab switching logic
+    if not self.activeTab then
+        contentPage.Visible = true
+        self.activeTab = tabButton
     end
-
-    task.defer(updateCanvasSize)
-
-    local currentThemeName = self:GetThemeName()
-    if currentThemeName ~= "Black" then
-        tabButton.BackgroundColor3 = baseColor:Lerp(Themes[currentThemeName], 0.35)
-    end
+    self.pages[tabButton] = tabObject
 
     tabButton.MouseButton1Click:Connect(function()
         if self.activeTab and self.activeTab ~= tabButton then
-            local oldTabBaseColor = self.activeTab:GetAttribute("BaseColor")
-            local currentThemeName = self:GetThemeName()
-            if oldTabBaseColor then
-                if currentThemeName == "Black" then
-                    self.activeTab.BackgroundColor3 = oldTabBaseColor
-                else
-                    self.activeTab.BackgroundColor3 = oldTabBaseColor:Lerp(Themes[currentThemeName], 0.15)
-                end
+            for _, dropdown in ipairs(self.allDropdowns) do
+                dropdown.close()
             end
+            
+            -- Hide old tab's content
+            local oldTabObject = self.pages[self.activeTab]
+            if oldTabObject then
+                oldTabObject:GetCurrentPage().page.Visible = false
+            end
+            
+            -- Deselect old tab button
+            local oldTabBaseColor = self.activeTab:GetAttribute("BaseColor")
+            self.activeTab.BackgroundColor3 = oldTabBaseColor
         end
 
-        for _, page in pairs(self.pages) do page.Visible = false end
-        tabObject.page.Visible = true
-        local currentThemeName = self:GetThemeName()
-        if currentThemeName ~= "Black" then
-            tabButton.BackgroundColor3 = baseColor:Lerp(Themes[currentThemeName], 0.35)
-        end
+        -- Show new tab's content and select the button
+        contentPage.Visible = true
+        tabButton.BackgroundColor3 = baseColor:Lerp(self.CurrentThemeColor, 0.35)
         self.activeTab = tabButton
     end)
     return tabObject
