@@ -832,7 +832,7 @@ function BlindHubsUiLibrary:AddColorPicker(options)
     })
 	
     create("UIGradient", { Name = "SaturationGradient", Rotation = 90, Color = ColorSequence.new(Color3.new(1, 1, 1)), Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(1, 1) }), Parent = svBox })
-    create("UIGradient", { Name = "ValueGradient",      Rotation = 180, Color = ColorSequence.new(Color3.new(0, 0, 0)), Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(1, 1) }), Parent = svBox })
+    create("UIGradient", { Name = "ValueGradient",       Rotation = 180, Color = ColorSequence.new(Color3.new(0, 0, 0)), Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(1, 1) }), Parent = svBox })
     
     local svKnob = create("Frame", {
         Name = "SVKnob", Size = UDim2.fromOffset(10, 10),
@@ -1861,9 +1861,7 @@ function BlindHubsUiLibrary.Init()
     -- Initialize the notification system first
     InitializeNotificationUI()
 
-    BlindHubsUiLibrary.CreateDefaultWindow()
 end
 
-BlindHubsUiLibrary.Init()
 
 return BlindHubsUiLibrary
