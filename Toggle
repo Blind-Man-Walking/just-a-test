@@ -1,30 +1,53 @@
--- ===================================================================
--- CREATE TOGGLE SCRIPT
--- Run this after creating a tab to add a toggle to it.
--- ===================================================================
+--- Creates a new toggle switch.
+-- Requires: 'create' function, BORDER_COLOR variable, self.window.CurrentThemeColor, self.window.animatedGradients, self.window.elementsToSave.
+function BlindHubsUiLibrary:AddToggle(text)
+    local uniqueId = (self.tabName or "Window") .. "_" .. text
+    local baseColor = Color3.fromRGB(65, 65, 65)
+    local toggleFrame = create("Frame", {
+        Name = text .. "_Toggle", Size = UDim2.new(1, 0, 0, 22), BackgroundColor3 = baseColor, Parent = self.page
+    })
 
--- Find the window and the target tab created by the previous scripts
-local Window = getgenv().Window
-local TargetTab = getgenv().TargetTab -- This assumes the "Create Tab" script stored the tab here
+    create("UICorner", { CornerRadius = UDim.new(0.5, 0), Parent = toggleFrame })
+    local toggleStroke = create("UIStroke", { Color = Color3.new(1, 1, 1), Thickness = 2, Parent = toggleFrame })
+    local toggleGradient = create("UIGradient", {
+        Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.00, BORDER_COLOR), ColorSequenceKeypoint.new(0.30, BORDER_COLOR),
+            ColorSequenceKeypoint.new(0.50, self.window.CurrentThemeColor), ColorSequenceKeypoint.new(0.70, BORDER_COLOR),
+            ColorSequenceKeypoint.new(1.00, BORDER_COLOR)
+        }),
+        Rotation = 0, Parent = toggleStroke
+    })
+    table.insert(self.window.animatedGradients, toggleGradient)
 
--- Check if the necessary parts exist
-if not Window or not TargetTab then
-    warn("CreateToggle Error: Window or Target Tab not found. Please run the 'Create Window' and 'Create Tab' scripts first.")
-    return
+    create("TextLabel", { Name = "Label", Size = UDim2.new(1, -55, 1, 0), Position = UDim2.fromOffset(10, 0), BackgroundTransparency = 1, Font = Enum.Font.SourceSans, Text = text or "Toggle", TextColor3 = Color3.fromRGB(225, 225, 225), TextSize = 14, TextXAlignment = Enum.TextXAlignment.Left, Parent = toggleFrame })
+    local switchButton = create("TextButton", { Name = "Switch", Size = UDim2.fromOffset(40, 18), Position = UDim2.new(1, -10, 0.5, 0), AnchorPoint = Vector2.new(1, 0.5), BackgroundColor3 = Color3.fromRGB(80, 80, 80), Text = "", Parent = toggleFrame })
+    create("UICorner", { CornerRadius = UDim.new(0.5, 0), Parent = switchButton })
+    create("UIStroke", { Color = BORDER_COLOR, Thickness = 1.5, Parent = switchButton })
+
+    local switchKnob = create("Frame", { Name = "Knob", Size = UDim2.fromOffset(14, 14), Position = UDim2.fromOffset(2, 2), BackgroundColor3 = Color3.fromRGB(225, 225, 225), BorderSizePixel = 0, Parent = switchButton })
+    create("UICorner", { CornerRadius = UDim.new(0.5, 0), Parent = switchKnob })
+
+    local checkmark = create("TextLabel", {
+        Name = "Checkmark", Size = UDim2.fromScale(1, 1), Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), Font = Enum.Font.SourceSansBold,
+        Text = "✔", TextColor3 = Color3.fromRGB(0, 0, 0), TextSize = 12, BackgroundTransparency = 1, Visible = false, Parent = switchKnob 
+    })
+
+    local state = create("BoolValue", { Name = "State", Value = false, Parent = toggleFrame })
+    self.window.elementsToSave[uniqueId] = { element = toggleFrame, type = "Toggle" }
+    
+    switchButton.MouseButton1Click:Connect(function() state.Value = not state.Value end)
+
+    state.Changed:Connect(function(newValue)
+        local tweenInfo = TweenInfo.new(0.2, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
+        if newValue then
+            TweenService:Create(switchKnob, tweenInfo, { Position = UDim2.fromOffset(switchButton.AbsoluteSize.X - switchKnob.AbsoluteSize.X - 2, 2) }):Play()
+            TweenService:Create(switchButton, tweenInfo, { BackgroundColor3 = self.window.CurrentThemeColor }):Play()
+            checkmark.Visible = true 
+        else
+            TweenService:Create(switchKnob, tweenInfo, { Position = UDim2.fromOffset(2, 2) }):Play()
+            TweenService:Create(switchButton, tweenInfo, { BackgroundColor3 = Color3.fromRGB(80, 80, 80) }):Play()
+            checkmark.Visible = false
+        end
+    end)
+    return toggleFrame
 end
-
--- Create a new toggle with the text "Enable Feature"
-local myToggle = TargetTab:AddToggle("Enable Feature")
-
--- Connect a function to the toggle's state change event
-myToggle.State.Changed:Connect(function(isEnabled)
-    if isEnabled then
-        print("The feature has been turned ON.")
-        -- Put your code to run when the toggle is enabled here
-    else
-        print("The feature has been turned OFF.")
-        -- Put your code to run when the toggle is disabled here
-    end
-end)
-
-print("Toggle 'Enable Feature' was added to the target tab successfully.")
