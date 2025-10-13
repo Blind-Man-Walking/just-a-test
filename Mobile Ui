@@ -1,6 +1,6 @@
 --[[
-    BlindHubsUiLibrary: A Foundational Custom UI Library
-    Version 20.0.54: Final Version (Packaged & Complete with Safeguards)
+    BlindHubsUiLibrary: A Foundational Custom UI Library
+    Version 20.0.54: Final Version (Packaged & Complete with Safeguards)
 ]]
 
 -- ===================================================================
@@ -352,7 +352,7 @@ local function InitializeNotificationUI()
 	})
 end
 
-local function CreateNotification(titleText, contentText, duration)
+function BlindHubsUiLibrary.CreateNotification(titleText, contentText, duration)
 	if not NotificationTemplate then InitializeNotificationUI() end
 	duration = duration or 5
 	local notifClone = NotificationTemplate:Clone()
@@ -455,7 +455,7 @@ function BlindHubsUiLibrary:AddSlider(options)
 			if num then
 				state.Value = math.clamp(num, min, max)
 			else
-				CreateNotification("Invalid Input", "Please enter a valid number.", 3)
+				BlindHubsUiLibrary.CreateNotification("Invalid Input", "Please enter a valid number.", 3)
 			end
 		end
 		valueBox.Text = tostring(state.Value)
@@ -1310,7 +1310,7 @@ end
 
 function BlindHubsUiLibrary:LoadSettings()
 	if not CONFIG_SYSTEM_ENABLED then
-		CreateNotification("Configuration", "File system access is not available.", 5)
+		BlindHubsUiLibrary.CreateNotification("Configuration", "File system access is not available.", 5)
 		return
 	end
 	
@@ -1318,7 +1318,7 @@ function BlindHubsUiLibrary:LoadSettings()
 		if isfolder("workspace") then
 			CONFIG_FOLDER_VERIFIED = true
 		else
-			CreateNotification("Warning", "'workspace' folder not found. Settings will not be saved or loaded.", 6)
+			BlindHubsUiLibrary.CreateNotification("Warning", "'workspace' folder not found. Settings will not be saved or loaded.", 6)
 			CONFIG_SYSTEM_ENABLED = false
 			return
 		end
@@ -1329,7 +1329,7 @@ function BlindHubsUiLibrary:LoadSettings()
 	
 	local success, encoded = pcall(readfile, "BlindHubConfig.json")
 	if not success or not encoded then
-		CreateNotification("Load Error", "Could not read config file.", 5)
+		BlindHubsUiLibrary.CreateNotification("Load Error", "Could not read config file.", 5)
 		return
 	end
 	
@@ -1354,7 +1354,7 @@ function BlindHubsUiLibrary:LoadSettings()
 			end
 		end
 	end
-	CreateNotification("Configuration", "Loaded settings.", 3)
+	BlindHubsUiLibrary.CreateNotification("Configuration", "Loaded settings.", 3)
 end
 
 -- ===================================================================
@@ -1420,7 +1420,7 @@ function BlindHubsUiLibrary:CreateMainTab()
 
 	discordButton.MouseButton1Click:Connect(function()
 		SetClipboard("https://your.discord.link/here")
-		CreateNotification("Discord Link", "Copied to clipboard!", 3)
+		BlindHubsUiLibrary.CreateNotification("Discord Link", "Copied to clipboard!", 3)
 	end)
 
 	return mainTab
@@ -1468,7 +1468,7 @@ function BlindHubsUiLibrary:CreateSettingsTab()
 	local resetButton = settingsTab:AddButton("Reset Settings")
 	resetButton.MouseButton1Click:Connect(function()
 		self:ResetSettings()
-		CreateNotification("Settings", "All settings have been reset.", 3)
+		BlindHubsUiLibrary.CreateNotification("Settings", "All settings have been reset.", 3)
 	end)
 
 	return settingsTab
