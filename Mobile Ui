@@ -1360,7 +1360,14 @@ end
 -- ===================================================================
 -- Default Tab Creation
 -- ===================================================================
-function BlindHubsUiLibrary:CreateMainTab()
+function BlindHubsUiLibrary:CreateMainTab(options)
+	-- This section handles your custom options. If none are provided, it uses the default values.
+	options = options or {}
+	local creatorName = options.Creator or "Blind_Lawyer"
+	local language = options.Language or "English"
+	local discordLink = options.DiscordLink -- No default value, will be nil if not provided.
+
+	-- The rest of the function now uses the variables from above
 	local mainTab = self:AddTab("Main")
 
 	task.wait()
@@ -1409,9 +1416,9 @@ function BlindHubsUiLibrary:CreateMainTab()
 	local infoText = create("TextLabel", {
 		Name = "InfoText", Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, Font = Enum.Font.SourceSans,
 		Text = string.format([[<b>Username:</b> %s
-<b>Creator:</b> Blind_Lawyer
+<b>Creator:</b> %s
 <b>Player ID:</b> %d
-<b>Language:</b> English]], player.Name, player.UserId),
+<b>Language:</b> %s]], player.Name, creatorName, player.UserId, language),
 		TextColor3 = Color3.new(1,1,1), TextSize = 12, RichText = true,
 		TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, Parent = infoContainer
 	})
@@ -1419,8 +1426,13 @@ function BlindHubsUiLibrary:CreateMainTab()
 	local discordButton = mainTab:AddButton("Join Server Discord | Copy Link")
 
 	discordButton.MouseButton1Click:Connect(function()
-		SetClipboard("https://your.discord.link/here")
-		BlindHubsUiLibrary.CreateNotification("Discord Link", "Copied to clipboard!", 3)
+		-- This check ensures the button only works if a link was provided.
+		if discordLink then
+			SetClipboard(discordLink)
+			BlindHubsUiLibrary.CreateNotification("Discord Link", "Copied to clipboard!", 3)
+		else
+			BlindHubsUiLibrary.CreateNotification("No Link", "A Discord link has not been set.", 3)
+		end
 	end)
 
 	return mainTab
@@ -1507,8 +1519,8 @@ function BlindHubsUiLibrary.CreateWindow(options)
 		error("BlindHubsUiLibrary Error: You must provide a 'Title' (string) when calling CreateWindow.", 2)
 	end
 
-    local defaultThemeName = options.DefaultTheme or "Orange"
-    local themeColor = Themes[defaultThemeName] or Themes["Orange"]
+	local defaultThemeName = options.DefaultTheme or "Orange"
+	local themeColor = Themes[defaultThemeName] or Themes["Orange"]
 
 	local title = options.Title
 	local size = options.Size or UDim2.fromOffset(500, 275)
@@ -1763,10 +1775,16 @@ function BlindHubsUiLibrary.CreateDefaultWindow()
 
 	local Window = BlindHubsUiLibrary.CreateWindow({
 		Title = fullTitle,
-        DefaultTheme = "Orange"
+		DefaultTheme = "Orange"
 	})
 
-	Window:CreateMainTab()
+	-- Call the main tab function with your custom info
+	-- V V V EDIT THESE VALUES V V V
+	Window:CreateMainTab({
+		Creator = "YourName",
+		DiscordLink = "https://discord.gg/YourCodeHere"
+	})
+	
 	Window:CreateSettingsTab()
 	Window:CreateCheatsTab()
 	
