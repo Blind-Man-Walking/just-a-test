@@ -1,99 +1,45 @@
+-- ##################################################################
+-- ##################################################################
+-- ###   [  START OF THE UI LIBRARY  ]   ###
+-- ### (Keep all this code. This is your toolkit) ###
+-- ##################################################################
+-- ##################################################################
+
 local UserInputService = game:GetService("UserInputService")
 local PlayerGui = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
 local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
-local HttpService = game:GetService("HttpService") -- ### NEW: For Save/Load ###
+local HttpService = game:GetService("HttpService")
 
+-- ### Global Events & Theme ###
 local CloseAllDropdowns = Instance.new("BindableEvent")
 local themeColor = Color3.fromRGB(0, 100, 255)
 local ThemeChanged = Instance.new("BindableEvent")
 
--- ### NEW: Default settings table for Save/Load/Reset ###
-local defaultSettings = {
-    -- Self Section
-    AutoFarm = false,
-    InfiniteJump = false,
-    ESP = true,
-    GodMode = false,
-    Noclip = false,
-    InfiniteStamina = true,
-    AutoRob = false,
-    AutoPickup = true,
-    SelectPart = "Head",
-    SelectPlayer = "Select...",
-    Walkspeed = "16",
-    
-    -- Visuals Section
-    Chams = 0,
-    WallhackOpacity = 50,
-    SkyColorRed = 100,
-    SkyColorGreen = 100,
-    SkyColorBlue = 100,
-    Brightness = 1,
-    
-    -- Settings
-    Theme = "Blue (Default)",
-    ToggleKey = Enum.KeyCode.RightShift,
-    
-    -- ### NEW: Watermark Settings ###
-    WatermarkTransparency = 20, -- (0-100)
-    WatermarkFontSize = 16, -- (10-24)
-    WatermarkX = 100, -- (0-100)
-    WatermarkY = 0 -- (0-100)
-}
--- This table will hold the live, current settings
-local currentSettings = table.clone(defaultSettings)
+-- ### Global UI State ###
+local selectedTab = nil -- This will keep track of the active tab
+local pages = {} -- Table to hold pages
+local activeColor = Color3.fromRGB(35, 35, 35)
+local inactiveColor = Color3.fromRGB(20, 20, 20)
+local activeTextColor = Color3.fromRGB(255, 255, 255) -- Bright white
+local inactiveTextColor = Color3.fromRGB(200, 200, 200) -- Gray-white
 
--- ### LOGO IDs REMOVED FROM HERE ###
+-- ### Global Position Definitions ###
+-- You can use these in your own script
+local sectionWidth = 208
+local smallSectionHeight = 201
+local gap = 5
+local topY = 2
+local bigPos = UDim2.new(0, 0, 0, topY)
+local smallTopPos = UDim2.new(0, sectionWidth + gap, 0, topY)
+local smallBottomPos = UDim2.new(0, sectionWidth + gap, 0, topY + smallSectionHeight + gap)
 
--- This table will hold the 'setValue' functions for all UI elements
-local allUIElements = {}
-
-
--- ### GET REFERENCES FOR FEATURES ###
-local player = Players.LocalPlayer
-local character = player.Character or player.CharacterAdded:Wait()
-local humanoid = character:WaitForChild("Humanoid")
-local camera = game.Workspace.CurrentCamera
-
--- Check if our UI already exists from a previous test
-local oldGui = PlayerGui:FindFirstChild("MainUI")
-if oldGui then
-    oldGui:Destroy()
-end
-local oldNotifGui = PlayerGui:FindFirstChild("NotificationGui")
-if oldNotifGui then
-    oldNotifGui:Destroy()
-end
-local oldWatermarkGui = PlayerGui:FindFirstChild("WatermarkGui")
-if oldWatermarkGui then
-    oldWatermarkGui:Destroy()
-end
--- ### NEW: Check for old ToggleGui ###
-local oldToggleGui = PlayerGui:FindFirstChild("ToggleGui")
-if oldToggleGui then
-    oldToggleGui:Destroy()
-end
-
-
--- Create a new ScreenGui to hold everything
-local mainScreenGui = Instance.new("ScreenGui")
-mainScreenGui.Name = "MainUI"
-mainScreenGui.Parent = PlayerGui
-mainScreenGui.ResetOnSpawn = false -- ### KEEPS UI AFTER DEATH ###
-
--- ### NEW: Create a separate ScreenGui for Notifications ###
+-- ### Notification GUI (Separate from Main UI) ###
 local notificationGui = Instance.new("ScreenGui")
 notificationGui.Name = "NotificationGui"
 notificationGui.Parent = PlayerGui
 notificationGui.ResetOnSpawn = false
 
--- ### Declare watermark variables so function can access them ###
-local watermarkGui, watermarkLabel
-local setUIVisible -- ### NEW: Declare setUIVisible here so keybind can find it ###
-
-
--- ### NEW: Create the Notification Container ###
 local notificationContainer = Instance.new("Frame")
 notificationContainer.Name = "NotificationContainer"
 notificationContainer.Parent = notificationGui
@@ -103,46 +49,28 @@ notificationContainer.Position = UDim2.new(1, -10, 1, -10) -- 10px padding
 notificationContainer.Size = UDim2.new(0, 250, 0, 300) -- 250px wide, 300px max height
 notificationContainer.ZIndex = 500 -- Make sure it's on top
 
--- ### NEW: Add UIListLayout to manage notifications ###
 local notificationLayout = Instance.new("UIListLayout")
 notificationLayout.Parent = notificationContainer
 notificationLayout.FillDirection = Enum.FillDirection.Vertical
 notificationLayout.SortOrder = Enum.SortOrder.LayoutOrder
-notificationLayout.VerticalAlignment = Enum.VerticalAlignment.Bottom -- ### This makes them stack upwards ###
-notificationLayout.Padding = UDim.new(0, 5) -- 5px gap between notifs
+notificationLayout.VerticalAlignment = Enum.VerticalAlignment.Bottom
+notificationLayout.Padding = UDim.new(0, 5)
 
--- ### Tab switching variables ###
-local selectedTab = nil -- This will keep track of the active tab
-local pages = {} -- ### NEW: Table to hold pages ###
-local activeColor = Color3.fromRGB(35, 35, 35)
-local inactiveColor = Color3.fromRGB(20, 20, 20)
-local activeTextColor = Color3.fromRGB(255, 255, 255) -- Bright white
-local inactiveTextColor = Color3.fromRGB(200, 200, 200) -- Gray-white
-
--- ### REFACTORED: Define Section Positions ###
-local sectionWidth = 208
-local smallSectionHeight = 201
-local gap = 5
-local topY = 2
-local bigPos = UDim2.new(0, 0, 0, topY)
-local smallTopPos = UDim2.new(0, sectionWidth + gap, 0, topY)
-local smallBottomPos = UDim2.new(0, sectionWidth + gap, 0, topY + smallSectionHeight + gap)
-
+local watermarkGui, watermarkLabel -- Global vars for watermark
+local setUIVisible -- Global var for keybind
 
 -- ##################################################################
--- ### ALL HELPER FUNCTIONS MOVED HERE (DEFINED BEFORE THEY ARE USED)
+-- ### HELPER FUNCTIONS (THE TOOLKIT)
 -- ##################################################################
 
--- ### START OF HELPER FUNCTIONS ###
-
--- ### NEW: HELPER FUNCTION: NOTIFICATION ###
+--- ### FUNCTION: createNotification ###
 local function createNotification(title, message)
     local notificationFrame = Instance.new("Frame")
     notificationFrame.Name = "Notification"
     notificationFrame.Parent = notificationContainer
     notificationFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
     notificationFrame.BackgroundTransparency = 0.5
-    notificationFrame.Size = UDim2.new(1, 0, 0, 0) -- 100% width, auto height
+    notificationFrame.Size = UDim2.new(1, 0, 0, 0)
     notificationFrame.AutomaticSize = Enum.AutomaticSize.Y
     
     local frameCorner = Instance.new("UICorner")
@@ -176,7 +104,7 @@ local function createNotification(title, message)
     titleLabel.Text = title
     titleLabel.TextXAlignment = Enum.TextXAlignment.Left
     titleLabel.BackgroundTransparency = 1
-    titleLabel.Size = UDim2.new(1, 0, 0, 0) -- 100% width, auto height
+    titleLabel.Size = UDim2.new(1, 0, 0, 0)
     titleLabel.AutomaticSize = Enum.AutomaticSize.Y
     titleLabel.TextWrapped = true
     
@@ -189,20 +117,17 @@ local function createNotification(title, message)
     messageLabel.Text = message
     messageLabel.TextXAlignment = Enum.TextXAlignment.Left
     messageLabel.BackgroundTransparency = 1
-    messageLabel.Size = UDim2.new(1, 0, 0, 0) -- 100% width, auto height
+    messageLabel.Size = UDim2.new(1, 0, 0, 0)
     messageLabel.AutomaticSize = Enum.AutomaticSize.Y
     messageLabel.TextWrapped = true
     
-    -- Animation
     local tweenInfoIn = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
     local tweenInfoOut = TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
     
-    -- Tween In
     TweenService:Create(notificationFrame, tweenInfoIn, {BackgroundTransparency = 0.5}):Play()
     TweenService:Create(titleLabel, tweenInfoIn, {TextTransparency = 0}):Play()
     TweenService:Create(messageLabel, tweenInfoIn, {TextTransparency = 0}):Play()
     
-    -- Wait and Tween Out
     task.wait(5)
     
     local fadeOut = TweenService:Create(notificationFrame, tweenInfoOut, {BackgroundTransparency = 1})
@@ -210,32 +135,32 @@ local function createNotification(title, message)
     TweenService:Create(messageLabel, tweenInfoOut, {TextTransparency = 1}):Play()
     fadeOut:Play()
     
-    -- Destroy after fade
     fadeOut.Completed:Wait()
     notificationFrame:Destroy()
 end
 
--- ### HELPER FUNCTION: WATERMARK ###
-local function createWatermark()
-    -- ### NEW: Watermark GUI (Back to being separate) ###
+--- ### FUNCTION: createWatermark ###
+local function createWatermark(text, fontSize, transparency, xPos, yPos)
+    -- Destroy old one if it exists
+    if watermarkGui then watermarkGui:Destroy() end
+
     watermarkGui = Instance.new("ScreenGui")
     watermarkGui.Name = "WatermarkGui"
     watermarkGui.Parent = PlayerGui
     watermarkGui.ResetOnSpawn = false
     watermarkGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
-    -- ### NEW: Watermark Box Label (Top-Right) ###
     watermarkLabel = Instance.new("TextLabel")
     watermarkLabel.Name = "WatermarkLabel"
     watermarkLabel.Parent = watermarkGui
-    watermarkLabel.Text = "using: \nBlindHubOfficial" 
+    watermarkLabel.Text = text or "My UI"
     watermarkLabel.Font = Enum.Font.SourceSansBold
-    watermarkLabel.TextSize = currentSettings.WatermarkFontSize
+    watermarkLabel.TextSize = fontSize or 16
     watermarkLabel.TextColor3 = themeColor
     watermarkLabel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-    watermarkLabel.BackgroundTransparency = currentSettings.WatermarkTransparency / 100
-    local initialX = currentSettings.WatermarkX / 100
-    local initialY = currentSettings.WatermarkY / 100
+    watermarkLabel.BackgroundTransparency = (transparency or 20) / 100
+    local initialX = (xPos or 100) / 100
+    local initialY = (yPos or 0) / 100
     watermarkLabel.AnchorPoint = Vector2.new(initialX, initialY)
     watermarkLabel.Position = UDim2.new(initialX, 0, initialY, 0)
     watermarkLabel.Size = UDim2.new(0, 170, 0, 40)
@@ -251,19 +176,20 @@ local function createWatermark()
     watermarkStroke.Thickness = 1
     watermarkStroke.Parent = watermarkLabel
     
-    -- Return the created items in case you want to modify them later
+    ThemeChanged.Event:Connect(function(newColor)
+        if watermarkLabel then watermarkLabel.TextColor3 = newColor end
+    end)
+
     return watermarkGui, watermarkLabel
 end
 
-
--- ### MODIFIED: BASE FUNCTION: CREATE SECTION ###
--- ### REVERTED: Removed all logo logic from this function ###
+--- ### FUNCTION: createSection (Base) ###
 local function createSection(parent, sectionTitle, size, position, extraScrollPadding)
     local sectionFrame = Instance.new("Frame")
     sectionFrame.Name = sectionTitle:gsub("%s+", "") .. "Section"
     sectionFrame.Parent = parent
     sectionFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-    sectionFrame.BackgroundTransparency = 0.2 -- ### Sections are SEE-THROUGH ###
+    sectionFrame.BackgroundTransparency = 0.2
     sectionFrame.Size = size
     sectionFrame.Position = position
 
@@ -306,7 +232,7 @@ local function createSection(parent, sectionTitle, size, position, extraScrollPa
     contentHolder.BorderSizePixel = 0
     contentHolder.ScrollingDirection = Enum.ScrollingDirection.Y
     contentHolder.ScrollBarThickness = 2
-    contentHolder.ScrollBarImageColor3 = themeColor -- ### NEW: Set initial theme color ###
+    contentHolder.ScrollBarImageColor3 = themeColor
     contentHolder.CanvasSize = UDim2.new(0, 0, 0, 0)
 
     local contentLayout = Instance.new("UIListLayout")
@@ -315,44 +241,36 @@ local function createSection(parent, sectionTitle, size, position, extraScrollPa
     contentLayout.SortOrder = Enum.SortOrder.LayoutOrder
     contentLayout.Padding = UDim.new(0, 5)
     
-    -- ### NEW: Add horizontal padding to see outlines ###
     local contentPadding = Instance.new("UIPadding")
     contentPadding.Parent = contentHolder
     contentPadding.PaddingLeft = UDim.new(0, 2)
     contentPadding.PaddingRight = UDim.new(0, 2)
     
-    -- ### REVERTED: Re-added extraScrollPadding ###
     contentLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
         local contentHeight = contentLayout.AbsoluteContentSize.Y
         contentHolder.CanvasSize = UDim2.new(0, 0, 0, contentHeight + (extraScrollPadding or 0))
     end)
     
-    -- ### NEW: Listen for theme changes ###
     ThemeChanged.Event:Connect(function(newColor)
         contentHolder.ScrollBarImageColor3 = newColor
     end)
     
-    -- Return the main frame and the container to add items to
     return sectionFrame, contentHolder
 end
 
--- ### FUNCTION FOR BIG SECTIONS ###
--- ### REVERTED: Removed logoId ###
+--- ### FUNCTION: createBigSection ###
 local function createBigSection(parent, title, position)
-    local size = UDim2.new(0, 208, 1, -2) -- 208px wide, full height
-    -- ### REVERTED: Added padding back ###
+    local size = UDim2.new(0, 208, 1, -2)
     return createSection(parent, title, size, position, 20)
 end
 
--- ### FUNCTION FOR SMALL SECTIONS ###
--- ### REVERTED: Removed logoId ###
+--- ### FUNCTION: createSmallSection ###
 local function createSmallSection(parent, title, position)
-    local size = UDim2.new(0, 208, 0, 201) -- ### MODIFIED: Height changed to 201 ###
-    -- ### REVERTED: Added padding back ###
+    local size = UDim2.new(0, 208, 0, 201)
     return createSection(parent, title, size, position, 20)
 end
 
--- ### HELPER FUNCTION: BUTTON ###
+--- ### FUNCTION: createButton ###
 local function createButton(parent, buttonText)
     local button = Instance.new("TextButton")
     button.Name = buttonText:gsub("%s+", "") .. "Button"
@@ -361,9 +279,9 @@ local function createButton(parent, buttonText)
     button.Font = Enum.Font.SourceSans
     button.TextSize = 14
     button.TextColor3 = Color3.fromRGB(200, 200, 200)
-    button.BackgroundColor3 = Color3.fromRGB(20, 20, 20) -- Dark background
+    button.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
     button.TextXAlignment = Enum.TextXAlignment.Left
-    button.Size = UDim2.new(1, 0, 0, 25) -- 100% width, 25px high
+    button.Size = UDim2.new(1, 0, 0, 25)
 
     local btnCorner = Instance.new("UICorner")
     btnCorner.CornerRadius = UDim.new(0, 4)
@@ -376,24 +294,22 @@ local function createButton(parent, buttonText)
     local arrowLabel = Instance.new("TextLabel")
     arrowLabel.Name = "ArrowLabel"
     arrowLabel.Parent = button
-    arrowLabel.Text = "»" -- Double arrow symbol
+    arrowLabel.Text = "»"
     arrowLabel.Font = Enum.Font.SourceSans
     arrowLabel.TextSize = 18
     arrowLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
     arrowLabel.BackgroundTransparency = 1
     arrowLabel.TextXAlignment = Enum.TextXAlignment.Right
-    arrowLabel.Size = UDim2.new(1, -8, 1, 0) -- Full size, with 8px padding on the right
+    arrowLabel.Size = UDim2.new(1, -8, 1, 0)
     arrowLabel.Position = UDim2.new(0, 0, 0, 0)
-    arrowLabel.Active = false -- So it doesn't block clicks
+    arrowLabel.Active = false
     
-    -- Return the button so we can add click events later
     return button
 end
 
--- ### HELPER FUNCTION: TOGGLE BUTTON ###
+--- ### FUNCTION: createToggleButton ###
 local function createToggleButton(parent, buttonText, initialValue)
     local toggled = initialValue or false
-    -- local toggleOnColor = Color3.fromRGB(45, 120, 220) -- ### REMOVED: Now uses global themeColor
     local toggleOffColor = Color3.fromRGB(55, 55, 55)
     local handleColor = Color3.fromRGB(255, 255, 255)
     local textOnColor = Color3.fromRGB(255, 255, 255)
@@ -442,7 +358,7 @@ local function createToggleButton(parent, buttonText, initialValue)
 
     local function updateAppearance()
         local targetHandlePos = toggled and UDim2.new(1, -14, 0.5, -6) or UDim2.new(0, 2, 0.5, -6)
-        local targetTrackColor = toggled and themeColor or toggleOffColor -- ### MODIFIED: Use themeColor ###
+        local targetTrackColor = toggled and themeColor or toggleOffColor
         local targetTextColor = toggled and textOnColor or textOffColor
 
         TweenService:Create(switchHandle, tweenInfo, {Position = targetHandlePos}):Play()
@@ -457,23 +373,22 @@ local function createToggleButton(parent, buttonText, initialValue)
     
     updateAppearance() 
     
-    -- ### NEW: setValue function for Save/Load/Reset ###
     local function setValue(newValue)
         toggled = newValue
         updateAppearance()
     end
     
     ThemeChanged.Event:Connect(function(newColor)
-        updateAppearance() -- Re-run appearance logic to get new theme color
+        updateAppearance()
     end)
     
     return toggleButton, function() return toggled end, setValue
 end
 
--- ### HELPER FUNCTION: SLIDER ###
-local function createSlider(parent, sliderText, minValue, maxValue, initialValue, rectangle) -- ### ADDED rectangle ARG ###
+--- ### FUNCTION: createSlider ###
+local function createSlider(parent, sliderText, minValue, maxValue, initialValue, rectangle)
     local currentValue = initialValue or minValue
-    local onChanged = Instance.new("BindableEvent") -- ### NEW: Custom event
+    local onChanged = Instance.new("BindableEvent")
     
     local sliderContainer = Instance.new("Frame")
     sliderContainer.Name = sliderText:gsub("%s+", "") .. "Slider"
@@ -508,7 +423,7 @@ local function createSlider(parent, sliderText, minValue, maxValue, initialValue
     local progress = Instance.new("TextButton") 
     progress.Name = "ProgressHandle"
     progress.Parent = track
-    progress.BackgroundColor3 = themeColor -- ### MODIFIED: Use themeColor ###
+    progress.BackgroundColor3 = themeColor
     progress.BorderSizePixel = 0
     progress.Text = "" 
     progress.Font = Enum.Font.SourceSansBold
@@ -540,7 +455,7 @@ local function createSlider(parent, sliderText, minValue, maxValue, initialValue
         progress.Size = UDim2.new(actualPercent, 0, 1, 0)
         progress.Text = tostring(math.floor(currentValue))
         
-        onChanged:Fire(currentValue) -- ### NEW: Fire the changed event
+        onChanged:Fire(currentValue)
     end
     
     local function updateFromInput(input)
@@ -558,7 +473,7 @@ local function createSlider(parent, sliderText, minValue, maxValue, initialValue
     track.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             isDragging = true
-            rectangle.Draggable = false -- ### FIX: Disable UI dragging ###
+            rectangle.Draggable = false
             updateFromInput(input)
         end
     end)
@@ -566,7 +481,7 @@ local function createSlider(parent, sliderText, minValue, maxValue, initialValue
     progress.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             isDragging = true
-            rectangle.Draggable = false -- ### FIX: Disable UI dragging ###
+            rectangle.Draggable = false
             updateFromInput(input)
         end
     end)
@@ -580,23 +495,21 @@ local function createSlider(parent, sliderText, minValue, maxValue, initialValue
     UserInputService.InputEnded:Connect(function(input)
         if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) and isDragging then
             isDragging = false
-            rectangle.Draggable = true -- ### FIX: Re-enable UI dragging ###
+            rectangle.Draggable = true
         end
     end)
     
     updateSlider(currentValue)
     
-    -- ### NEW: Listen for theme changes ###
     ThemeChanged.Event:Connect(function(newColor)
         progress.BackgroundColor3 = newColor
     end)
     
-    -- ### MODIFIED: Return the .Event and setValue function ###
     return sliderContainer, function() return currentValue end, onChanged.Event, updateSlider
 end
 
--- ### NEW: HELPER FUNCTION: TEXT BOX (MODIFIED) ###
-local function createTextBox(parent, placeholderText, initialValue, rectangle) -- ### ADDED rectangle ARG ###
+--- ### FUNCTION: createTextBox ###
+local function createTextBox(parent, placeholderText, initialValue, rectangle)
     local textBox = Instance.new("TextBox")
     textBox.Name = placeholderText:gsub("%s+", "") .. "TextBox"
     textBox.Parent = parent
@@ -606,51 +519,43 @@ local function createTextBox(parent, placeholderText, initialValue, rectangle) -
     textBox.TextSize = 14
     textBox.TextColor3 = Color3.fromRGB(200, 200, 200)
     textBox.PlaceholderColor3 = Color3.fromRGB(100, 100, 100)
-    textBox.BackgroundColor3 = Color3.fromRGB(20, 20, 20) -- Match section bg
-    textBox.BackgroundTransparency = 0 -- ### MODIFIED: Make it visible ###
-    textBox.Size = UDim2.new(1, 0, 0, 25) -- ### MODIFIED: Match button height ###
+    textBox.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    textBox.BackgroundTransparency = 0
+    textBox.Size = UDim2.new(1, 0, 0, 25)
     textBox.TextXAlignment = Enum.TextXAlignment.Left
-    textBox.ClearTextOnFocus = false -- Don't clear if they click back in
+    textBox.ClearTextOnFocus = false
 
-    -- ### NEW: Add corner ###
     local tbCorner = Instance.new("UICorner")
     tbCorner.CornerRadius = UDim.new(0, 4)
     tbCorner.Parent = textBox
 
-    -- ### NEW: Add outline ###
     local tbStroke = Instance.new("UIStroke")
-    tbStroke.Color = themeColor -- ### MODIFIED: Use theme color ###
+    tbStroke.Color = themeColor
     tbStroke.Thickness = 1
     tbStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     tbStroke.Parent = textBox
     
-    -- ### NEW: Update stroke color on theme change ###
     local themeConnection = ThemeChanged.Event:Connect(function(newColor)
         tbStroke.Color = newColor
     end)
     
-    -- ### NEW: Disconnect event on destroy ###
     textBox.Destroying:Connect(function()
         themeConnection:Disconnect()
     end)
 
-    -- ### NEW: Add UIPadding back in to move the text ###
     local padding = Instance.new("UIPadding")
-    padding.PaddingLeft = UDim.new(0, 16) -- This will move the text 16px to the right
+    padding.PaddingLeft = UDim.new(0, 16)
     padding.PaddingRight = UDim.new(0, 16)
     padding.Parent = textBox
 
-    -- Disable main UI dragging while typing
     textBox.Focused:Connect(function()
         rectangle.Draggable = false
     end)
     
-    -- Re-enable main UI dragging when done
     textBox.FocusLost:Connect(function()
         rectangle.Draggable = true
     end)
 
-    -- ### NEW: setValue function for Save/Load/Reset ###
     local function setValue(newValue)
         textBox.Text = tostring(newValue)
     end
@@ -658,7 +563,7 @@ local function createTextBox(parent, placeholderText, initialValue, rectangle) -
     return textBox, function() return textBox.Text end, setValue
 end
 
--- ### NEW: HELPER FUNCTION: KEYBIND ###
+--- ### FUNCTION: createKeybind ###
 local function createKeybind(parent, text, defaultKey)
     local currentKey = defaultKey or Enum.KeyCode.RightShift
     local isListening = false
@@ -690,7 +595,6 @@ local function createKeybind(parent, text, defaultKey)
         isListening = true
         keybindButton.Text = text .. ": [...]"
         
-        -- Listen for the next key press
         inputConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
             if gameProcessed then return end
             
@@ -702,16 +606,11 @@ local function createKeybind(parent, text, defaultKey)
                     inputConnection:Disconnect()
                     inputConnection = nil
                 end
-                
-                -- ### NEW: Update the global settings table ###
-                currentSettings.ToggleKey = currentKey
             end
         end)
     end)
 
-    -- ### NEW: setValue function for Save/Load/Reset ###
     local function setValue(newKey)
-        -- If the saved key is a string, convert it to KeyCode
         if type(newKey) == "string" then
             currentKey = Enum.KeyCode[newKey] or defaultKey
         else
@@ -723,22 +622,18 @@ local function createKeybind(parent, text, defaultKey)
     return keybindButton, function() return currentKey end, setValue
 end
 
--- ### NEW: HELPER FUNCTION: DIVIDER ###
+--- ### FUNCTION: createDivider ###
 local function createDivider(parent)
     local divider = Instance.new("Frame")
     divider.Name = "Divider"
     divider.Parent = parent
     divider.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
     divider.BorderSizePixel = 0
-    divider.Size = UDim2.new(1, 0, 0, 1) -- 100% width, 1px high
+    divider.Size = UDim2.new(1, 0, 0, 1)
     return divider
 end
 
--- ##################################################################
--- ### NEW ADD-ON FUNCTIONS START HERE ###
--- ##################################################################
-
--- ### NEW: HELPER FUNCTION: ADD LOGO TO TAB ###
+--- ### FUNCTION: addLogoToTab ###
 local function addLogoToTab(tabButton, logoId, position, size)
     if not tabButton then return nil end
     
@@ -747,21 +642,17 @@ local function addLogoToTab(tabButton, logoId, position, size)
     logo.Parent = tabButton
     logo.Image = logoId
     logo.BackgroundTransparency = 1
-    -- Default to a 20x20 icon, centered
     logo.Size = size or UDim2.new(0, 20, 0, 20)
     logo.Position = position or UDim2.fromScale(0.5, 0.5)
     logo.AnchorPoint = Vector2.new(0.5, 0.5)
     logo.ZIndex = (tabButton.ZIndex or 1) + 1
     
-    -- Set initial color from the tab's text
     logo.ImageColor3 = tabButton.TextColor3 
     
-    -- Connect to future color changes (active/inactive)
     local connection = tabButton:GetPropertyChangedSignal("TextColor3"):Connect(function()
         logo.ImageColor3 = tabButton.TextColor3
     end)
     
-    -- Cleanup
     logo.Destroying:Connect(function()
         connection:Disconnect()
     end)
@@ -769,7 +660,7 @@ local function addLogoToTab(tabButton, logoId, position, size)
     return logo
 end
 
--- ### NEW: HELPER FUNCTION: ADD LOGO TO SECTION ###
+--- ### FUNCTION: addLogoToSection ###
 local function addLogoToSection(sectionFrame, logoId, position, size)
     if not sectionFrame then return nil end
     
@@ -781,7 +672,6 @@ local function addLogoToSection(sectionFrame, logoId, position, size)
     logo.Parent = sectionFrame
     logo.Image = logoId
     logo.BackgroundTransparency = 1
-    -- Default to 16x16 icon, positioned where the title text starts
     logo.Size = size or UDim2.new(0, 16, 0, 16)
     logo.Position = position or UDim2.new(0, 10, 0, 5) 
     logo.ZIndex = (sectionFrame.ZIndex or 1) + 1
@@ -790,28 +680,21 @@ local function addLogoToSection(sectionFrame, logoId, position, size)
     return logo
 end
 
--- ##################################################################
--- ### NEW ADD-ON FUNCTIONS END HERE ###
--- ##################################################################
-
-
--- ### NEW: HELPER FUNCTION: DROPDOWN (MODIFIED FOR UPDATES) ###
+--- ### FUNCTION: createDropdown ###
 local function createDropdown(parent, dropdownText, optionsList, rectangle)
     local currentOptions = optionsList or {}
     local selectedValue = currentOptions[1] or "Select..."
     local isOpen = false
-    local onChanged = Instance.new("BindableEvent") -- ### NEW: Event for when selection changes ###
+    local onChanged = Instance.new("BindableEvent")
     
-    -- This frame goes into the UIListLayout
     local dropdownContainer = Instance.new("Frame")
     dropdownContainer.Name = dropdownText:gsub("%s+", "") .. "Dropdown"
     dropdownContainer.Parent = parent
     dropdownContainer.BackgroundTransparency = 1
-    dropdownContainer.Size = UDim2.new(1, 0, 0, 25) -- 100% width, 25px high
-    dropdownContainer.ClipsDescendants = false -- Allow list to show
-    dropdownContainer.ZIndex = 2 -- Above other elements in the section
+    dropdownContainer.Size = UDim2.new(1, 0, 0, 25)
+    dropdownContainer.ClipsDescendants = false
+    dropdownContainer.ZIndex = 2
 
-    -- Main button to show selected value
     local mainButton = Instance.new("TextButton")
     mainButton.Name = "MainButton"
     mainButton.Parent = dropdownContainer
@@ -821,7 +704,7 @@ local function createDropdown(parent, dropdownText, optionsList, rectangle)
     mainButton.TextColor3 = Color3.fromRGB(200, 200, 200)
     mainButton.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
     mainButton.TextXAlignment = Enum.TextXAlignment.Left
-    mainButton.Size = UDim2.new(1, 0, 1, 0) -- Full width and height of container
+    mainButton.Size = UDim2.new(1, 0, 1, 0)
     mainButton.ZIndex = 3
 
     local btnCorner = Instance.new("UICorner")
@@ -832,11 +715,10 @@ local function createDropdown(parent, dropdownText, optionsList, rectangle)
     btnPadding.PaddingLeft = UDim.new(0, 8)
     btnPadding.Parent = mainButton
     
-    -- Arrow label
     local arrowLabel = Instance.new("TextLabel")
     arrowLabel.Name = "ArrowLabel"
     arrowLabel.Parent = mainButton
-    arrowLabel.Text = "˅" -- Down arrow
+    arrowLabel.Text = "˅"
     arrowLabel.Font = Enum.Font.SourceSans
     arrowLabel.TextSize = 14
     arrowLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
@@ -846,17 +728,16 @@ local function createDropdown(parent, dropdownText, optionsList, rectangle)
     arrowLabel.Active = false
     arrowLabel.ZIndex = 4
 
-    -- Dropdown list (ScrollingFrame)
     local dropdownList = Instance.new("ScrollingFrame")
     dropdownList.Name = "DropdownList"
     dropdownList.Parent = rectangle 
     dropdownList.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-    dropdownList.Position = UDim2.new(0, 0, 0, 0) -- Will be set dynamically
+    dropdownList.Position = UDim2.new(0, 0, 0, 0)
     dropdownList.Visible = false
     dropdownList.ZIndex = 100 
     dropdownList.BorderSizePixel = 0
     dropdownList.ScrollBarThickness = 2
-    dropdownList.ScrollBarImageColor3 = themeColor -- ### NEW: Set initial theme color ###
+    dropdownList.ScrollBarImageColor3 = themeColor
     dropdownList.ClipsDescendants = true
     
     local listLayout = Instance.new("UIListLayout")
@@ -872,21 +753,18 @@ local function createDropdown(parent, dropdownText, optionsList, rectangle)
     local totalHeight = 0
     local optionHeight = 25
     local optionPadding = listLayout.Padding.Offset
-    local maxHeight = 180 -- Max height before scrolling
+    local maxHeight = 180
     
-    -- ### NEW: Central function to close the dropdown ###
     local function closeDropdown()
-        if not isOpen then return end -- Don't do anything if already closed
+        if not isOpen then return end
         isOpen = false
         dropdownList.Visible = false
-        arrowLabel.Text = "˅" -- Down arrow
+        arrowLabel.Text = "˅"
     end
 
-    -- ### NEW: setValue function for Save/Load/Reset ###
     local function setValue(newValue)
         selectedValue = newValue
         mainButton.Text = newValue
-        -- Check if this value is a valid option, if not, don't fire event
         local found = false
         for _, v in ipairs(currentOptions) do
             if v == selectedValue then
@@ -899,11 +777,9 @@ local function createDropdown(parent, dropdownText, optionsList, rectangle)
         end
     end
 
-    -- ### NEW: Function to update the options ###
     local function updateOptions(newOptionsList)
         currentOptions = newOptionsList or {}
         
-        -- Clear old options
         for _, child in ipairs(dropdownList:GetChildren()) do
             if child:IsA("TextButton") then
                 child:Destroy()
@@ -912,12 +788,10 @@ local function createDropdown(parent, dropdownText, optionsList, rectangle)
         
         totalHeight = 0
         
-        -- Set new default value
         if #currentOptions == 0 then
             selectedValue = "No Options"
             mainButton.Text = "No Options"
         else
-            -- Check if old selectedValue is still valid
             local found = false
             for _, v in ipairs(currentOptions) do
                 if v == selectedValue then
@@ -928,37 +802,36 @@ local function createDropdown(parent, dropdownText, optionsList, rectangle)
             if not found then
                 selectedValue = currentOptions[1]
                 mainButton.Text = selectedValue
-                onChanged:Fire(selectedValue) -- Fire event on auto-change
+                onChanged:Fire(selectedValue)
             end
         end
 
-        -- Populate with new options
         for i, optionName in ipairs(currentOptions) do
             local optionButton = Instance.new("TextButton")
             optionButton.Name = optionName
             optionButton.Parent = dropdownList
-            optionButton.Text = "  " .. optionName -- Indent text
+            optionButton.Text = "  " .. optionName
             optionButton.Font = Enum.Font.SourceSans
             optionButton.TextSize = 14
             optionButton.TextColor3 = Color3.fromRGB(200, 200, 200)
-            optionButton.BackgroundColor3 = Color3.fromRGB(25, 25, 25) -- Solid bg color
-            optionButton.BackgroundTransparency = 0 -- Not transparent
+            optionButton.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+            optionButton.BackgroundTransparency = 0
             optionButton.TextXAlignment = Enum.TextXAlignment.Left
             optionButton.Size = UDim2.new(1, 0, 0, optionHeight)
             optionButton.BorderSizePixel = 0
-            optionButton.ZIndex = 101 -- ### FIX: Ensures options draw on top of the list's background ###
+            optionButton.ZIndex = 101
             
             optionButton.MouseEnter:Connect(function()
-                optionButton.BackgroundColor3 = Color3.fromRGB(35, 35, 35) -- Hover color
+                optionButton.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
             end)
             optionButton.MouseLeave:Connect(function()
-                optionButton.BackgroundColor3 = Color3.fromRGB(25, 25, 25) -- Back to normal
+                optionButton.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
             end)
             
             optionButton.MouseButton1Click:Connect(function()
                 selectedValue = optionName
                 mainButton.Text = selectedValue
-                onChanged:Fire(selectedValue) -- ### NEW: Fire event on click ###
+                onChanged:Fire(selectedValue)
                 closeDropdown()
             end)
             
@@ -968,75 +841,60 @@ local function createDropdown(parent, dropdownText, optionsList, rectangle)
             end
         end
         
-        -- ### REVERTED: Added back small padding ###
         dropdownList.CanvasSize = UDim2.new(0, 0, 0, totalHeight + 20)
     end
     
-    -- ### NEW: Close dropdown when section scrolls ###
     parent:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
         closeDropdown()
     end)
     
-    -- Connect the main button click
     mainButton.MouseButton1Click:Connect(function()
         if isOpen then
-            -- It's open, so we need to close it
             closeDropdown()
         else
-            -- It's closed, so we need to open it
             isOpen = true
             dropdownList.Visible = true
-            arrowLabel.Text = "˄" -- Up arrow
+            arrowLabel.Text = "˄"
             
-            -- Recalculate size in case window was resized
             local currentListHeight = math.min(totalHeight + 4, maxHeight)
             dropdownList.Size = UDim2.new(0, dropdownContainer.AbsoluteSize.X, 0, currentListHeight)
 
-            -- Calculate position relative to rectangle
             local containerAbsPos = dropdownContainer.AbsolutePosition
             local rectangleAbsPos = rectangle.AbsolutePosition
             
             local xPos = containerAbsPos.X - rectangleAbsPos.X
             local yPos = containerAbsPos.Y - rectangleAbsPos.Y
             
-            -- Check if spawning *above* goes off-screen
-            local desiredY_Above = yPos - currentListHeight - 5 -- 5px gap
-            local desiredY_Below = yPos + dropdownContainer.AbsoluteSize.Y + 2 -- 2px gap
+            local desiredY_Above = yPos - currentListHeight - 5
+            local desiredY_Below = yPos + dropdownContainer.AbsoluteSize.Y + 2
 
             if desiredY_Above < 0 then
-                -- Spawning above would go off-screen, so spawn below instead
                 dropdownList.Position = UDim2.new(0, xPos, 0, desiredY_Below)
             else
-                -- Spawning above is fine
                 dropdownList.Position = UDim2.new(0, xPos, 0, desiredY_Above)
             end
         end
     end)
     
-    -- ### NEW: Connect to the global close event and handle cleanup ###
     local connection = CloseAllDropdowns.Event:Connect(closeDropdown)
     
-    -- ### NEW: Connect to theme change event ###
     local themeConnection = ThemeChanged.Event:Connect(function(newColor)
         dropdownList.ScrollBarImageColor3 = newColor
     end)
     
     dropdownContainer.Destroying:Connect(function()
-        connection:Disconnect() -- Disconnect the event to prevent memory leaks
-        themeConnection:Disconnect() -- Disconnect theme event
-        dropdownList:Destroy() -- Destroy the list (which is parented to 'rectangle')
+        connection:Disconnect()
+        themeConnection:Disconnect()
+        dropdownList:Destroy()
     end)
     
-    -- ### MODIFIED: Call updateOptions to populate list initially ###
     updateOptions(currentOptions)
     
-    -- ### MODIFIED: Return the new update function AND the event ###
     return dropdownContainer, function() return selectedValue end, updateOptions, onChanged.Event, setValue
 end
 
--- ### NEW: HELPER FUNCTION: PLAYER DROPDOWN ###
+--- ### FUNCTION: createPlayerDropdown ###
 local function createPlayerDropdown(parent, rectangle)
-    -- This internal function gets the player names
     local function getPlayerNames()
         local names = {"Select..."}
         for _, p in ipairs(Players:GetPlayers()) do
@@ -1045,38 +903,31 @@ local function createPlayerDropdown(parent, rectangle)
         return names
     end
     
-    -- Create the dropdown
     local dropdown, getSelected, updateOptions, changedEvent, setValue = createDropdown(parent, "Select Player", getPlayerNames(), rectangle)
     
-    -- Connect events to automatically update the list
     Players.PlayerAdded:Connect(function(player) 
         updateOptions(getPlayerNames()) 
     end)
     Players.PlayerRemoving:Connect(function(player) 
-        task.wait() -- Wait a frame for player to fully remove
+        task.wait()
         updateOptions(getPlayerNames()) 
     end)
     
-    -- Return the same values as createDropdown
     return dropdown, getSelected, updateOptions, changedEvent, setValue
 end
 
--- ### NEW: Global function to set theme ###
+--- ### FUNCTION: setThemeColor ###
 local function setThemeColor(newColor, titleLabel, subtitleLabel)
     themeColor = newColor -- Update the global variable
     
-    -- Update main title
-    titleLabel.TextColor3 = newColor
-    subtitleLabel.TextColor3 = newColor
-    if watermarkLabel then watermarkLabel.TextColor3 = newColor end -- ### ADDED nil check ###
+    if titleLabel then titleLabel.TextColor3 = newColor end
+    if subtitleLabel then subtitleLabel.TextColor3 = newColor end
+    if watermarkLabel then watermarkLabel.TextColor3 = newColor end
     
-    -- Fire the event to update all sliders, toggles, and scrollbars
     ThemeChanged:Fire(newColor)
 end
 
--- ### NEW: HELPER FUNCTION: CREATE TAB ###
--- ### REVERTED: Removed all logo logic ###
--- ### MODIFIED: Now returns (pageFrame, tabButton) ###
+--- ### FUNCTION: createTab ###
 local function createTab(tabName, tabContainer, contentContainer)
     local tabButton = Instance.new("TextButton")
     tabButton.Name = tabName .. "Tab"
@@ -1093,124 +944,122 @@ local function createTab(tabName, tabContainer, contentContainer)
     
     tabButton.TextXAlignment = Enum.TextXAlignment.Center
     
-    -- ### NEW: Create the page for this tab ###
     local pageFrame = Instance.new("Frame")
     pageFrame.Name = tabName .. "Page"
     pageFrame.Parent = contentContainer
     pageFrame.Size = UDim2.new(1, 0, 1, 0)
     pageFrame.BackgroundTransparency = 1
-    pageFrame.Visible = false -- Hide by default
+    pageFrame.Visible = false
     
-    -- ### NEW: Store the page ###
     pages[tabButton] = pageFrame
     
-    -- Set default state and add logic
     if selectedTab == nil then
-        -- Make the first tab active by default
         tabButton.BackgroundColor3 = activeColor
         tabButton.TextColor3 = activeTextColor
         selectedTab = tabButton
-        pageFrame.Visible = true -- Show the first page
+        pageFrame.Visible = true
     else
-        -- Make other tabs inactive
         tabButton.BackgroundColor3 = inactiveColor
         tabButton.TextColor3 = inactiveTextColor
     end
     
-    -- Add the click event to manage selection
     tabButton.MouseButton1Click:Connect(function()
-        if selectedTab == tabButton then return end -- Don't do anything if already selected
+        if selectedTab == tabButton then return end
 
-        CloseAllDropdowns:Fire() -- ### NEW: Fire event on tab switch ###
+        CloseAllDropdowns:Fire()
 
-        -- ### MODIFIED: Deactivate old tab/page ###
         if selectedTab then
             selectedTab.BackgroundColor3 = inactiveColor
             selectedTab.TextColor3 = inactiveTextColor
-            pages[selectedTab].Visible = false -- Hide old page
+            pages[selectedTab].Visible = false
         end
 
-        -- ### MODIFIED: Activate new tab/page ###
         tabButton.BackgroundColor3 = activeColor
         tabButton.TextColor3 = activeTextColor
-        pages[tabButton].Visible = true -- Show new page
+        pages[tabButton].Visible = true
 
-        -- Update the state variable
         selectedTab = tabButton
     end)
     
-    return pageFrame, tabButton -- ### MODIFIED: Return button too ###
+    return pageFrame, tabButton
 end
 
 
--- ### START of createWindow FUNCTION ###
+--- ### FUNCTION: createWindow (The Main Function) ###
+-- This is now a generic function. It returns all the key parts.
 local function createWindow(windowTitle, windowSubtitle)
+    -- Check for old UIs and remove them
+    if PlayerGui:FindFirstChild("MainUI") then PlayerGui:FindFirstChild("MainUI"):Destroy() end
+    if PlayerGui:FindFirstChild("ToggleGui") then PlayerGui:FindFirstChild("ToggleGui"):Destroy() end
+
+    -- Create a new ScreenGui to hold everything
+    local mainScreenGui = Instance.new("ScreenGui")
+    mainScreenGui.Name = "MainUI"
+    mainScreenGui.Parent = PlayerGui
+    mainScreenGui.ResetOnSpawn = false
+
     -- Create the main UI rectangle
     local rectangle = Instance.new("Frame")
     rectangle.Name = "Rectangle"
     rectangle.Parent = mainScreenGui
     rectangle.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-    rectangle.BackgroundTransparency = 0 -- ### Main window is SOLID ###
+    rectangle.BackgroundTransparency = 0
     rectangle.BorderSizePixel = 0
     rectangle.Size = UDim2.new(0, 550, 0, 450)
     rectangle.Position = UDim2.fromScale(0.5, 0.5)
     rectangle.AnchorPoint = Vector2.new(0.5, 0.5)
-    rectangle.Active = true -- Makes it able to receive input
-    rectangle.Draggable = true -- Enables the default dragging (simpler)
+    rectangle.Active = true
+    rectangle.Draggable = true
 
-    -- Add rounded corners
     local corner = Instance.new("UICorner")
     corner.CornerRadius = UDim.new(0, 8)
     corner.Parent = rectangle
 
-    -- ### NEW: Black Outline around the main window ###
     local windowOutline = Instance.new("UIStroke")
     windowOutline.Name = "WindowOutline"
-    windowOutline.Color = Color3.fromRGB(0, 0, 0) -- Black color
+    windowOutline.Color = Color3.fromRGB(0, 0, 0)
     windowOutline.Thickness = 4
-    windowOutline.ApplyStrokeMode = Enum.ApplyStrokeMode.Border -- Apply as border
+    windowOutline.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     windowOutline.Parent = rectangle
 
-    -- Add the main title text
+    -- Add the main title text (uses the function arguments)
     local titleLabel = Instance.new("TextLabel")
     titleLabel.Name = "TitleLabel"
     titleLabel.Parent = rectangle
-    titleLabel.Text = windowTitle or "Window" -- Use function argument
+    titleLabel.Text = windowTitle or "Window" -- No longer hard-coded
     titleLabel.Font = Enum.Font.SourceSansBold
     titleLabel.TextSize = 16
     titleLabel.TextColor3 = themeColor
     titleLabel.TextXAlignment = Enum.TextXAlignment.Left
     titleLabel.BackgroundTransparency = 1
-    titleLabel.Active = false -- So it doesn't block dragging
+    titleLabel.Active = false
     titleLabel.Position = UDim2.new(0, 10, 0, 10)
-    titleLabel.Size = UDim2.new(0, 200, 0, 20) -- Made wider for custom titles
+    titleLabel.Size = UDim2.new(0, 200, 0, 20)
 
-    -- *** MODIFIED: Indented to align 'd' under 'l' ***
     local subtitleLabel = Instance.new("TextLabel")
     subtitleLabel.Name = "SubtitleLabel"
     subtitleLabel.Parent = rectangle
-    subtitleLabel.Text = windowSubtitle or "" -- Use function argument
+    subtitleLabel.Text = windowSubtitle or "" -- No longer hard-coded
     subtitleLabel.Font = Enum.Font.SourceSans
     subtitleLabel.TextSize = 12
     subtitleLabel.TextColor3 = themeColor
     subtitleLabel.TextXAlignment = Enum.TextXAlignment.Left
     subtitleLabel.BackgroundTransparency = 1
-    subtitleLabel.Active = false -- So it doesn't block dragging
+    subtitleLabel.Active = false
     subtitleLabel.Position = UDim2.new(0, 15, 0, 27)
-    subtitleLabel.Size = UDim2.new(0, 200, 0, 16) -- Made wider
+    subtitleLabel.Size = UDim2.new(0, 200, 0, 16)
 
-    -- ### NEW: Toggle Buttons GUI (Separate) ###
+    -- Toggle Buttons GUI (Separate)
     local toggleGui = Instance.new("ScreenGui")
     toggleGui.Name = "ToggleGui"
     toggleGui.Parent = PlayerGui
     toggleGui.ResetOnSpawn = false
     toggleGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
-    -- ### NEW: Open/Close Button ###
     local openCloseButton = Instance.new("TextButton")
     openCloseButton.Name = "OpenCloseButton"
-    openCloseButton.Parent = toggleGui -- ### MODIFIED: Parented to toggleGui
-    openCloseButton.Text = "Close" -- UI starts visible
+    openCloseButton.Parent = toggleGui
+    openCloseButton.Text = "Close"
     openCloseButton.Font = Enum.Font.SourceSansBold
     openCloseButton.TextSize = 14
     openCloseButton.TextColor3 = Color3.fromRGB(200, 200, 200)
@@ -1230,11 +1079,10 @@ local function createWindow(windowTitle, windowSubtitle)
     ocStroke.Thickness = 1
     ocStroke.Parent = openCloseButton
 
-    -- ### NEW: Lock/Unlock Button ###
     local lockButton = Instance.new("TextButton")
     lockButton.Name = "LockButton"
     lockButton.Parent = toggleGui
-    lockButton.Text = "Lock" -- UI starts draggable
+    lockButton.Text = "Lock"
     lockButton.Font = Enum.Font.SourceSansBold
     lockButton.TextSize = 14
     lockButton.TextColor3 = Color3.fromRGB(200, 200, 200)
@@ -1254,15 +1102,11 @@ local function createWindow(windowTitle, windowSubtitle)
     lockStroke.Thickness = 1
     lockStroke.Parent = lockButton
     
-    -- ### NEW: Connect toggle button outlines to theme ###
     ThemeChanged.Event:Connect(function(newColor)
         ocStroke.Color = newColor
         lockStroke.Color = newColor
     end)
     
-    -- ### START OF CHANGED SECTION ###
-    -- ### NEW: UI Toggle Function ###
-    -- ### ASSIGN to the global 'setUIVisible' ###
     setUIVisible = function(isVisible)
         mainScreenGui.Enabled = isVisible
         if isVisible then
@@ -1271,9 +1115,7 @@ local function createWindow(windowTitle, windowSubtitle)
             openCloseButton.Text = "Open"
         end
     end
-    -- ### END OF CHANGED SECTION ###
 
-    -- ### NEW: Connect Toggle Buttons ###
     openCloseButton.MouseButton1Click:Connect(function()
         setUIVisible(not mainScreenGui.Enabled)
     end)
@@ -1284,15 +1126,13 @@ local function createWindow(windowTitle, windowSubtitle)
         
         if isDraggable then
             lockButton.Text = "Lock"
-            createNotification("BlindHub", "UI Unlocked")
+            createNotification("UI", "UI Unlocked")
         else
             lockButton.Text = "Unlock"
-            createNotification("BlindHub", "UI Locked")
+            createNotification("UI", "UI Locked")
         end
     end)
 
-
-    -- ### NEW: Close Button (Top-Right 'X') ###
     local closeButton = Instance.new("TextButton")
     closeButton.Name = "CloseButton"
     closeButton.Parent = rectangle
@@ -1305,16 +1145,14 @@ local function createWindow(windowTitle, windowSubtitle)
     closeButton.Size = UDim2.new(0, 30, 0, 30)
     closeButton.Position = UDim2.new(1, -30, 0, 5)
 
-    -- Add the click event to close the UI
     closeButton.MouseButton1Click:Connect(function()
         CloseAllDropdowns:Fire()
         mainScreenGui:Destroy()
         notificationGui:Destroy()
         if watermarkGui then watermarkGui:Destroy() end
-        toggleGui:Destroy() -- ### MOVED HERE ###
+        toggleGui:Destroy()
     end)
 
-    -- Horizontal divider line (in the content area)
     local dividerLine = Instance.new("Frame")
     dividerLine.Name = "Divider"
     dividerLine.Parent = rectangle
@@ -1323,7 +1161,6 @@ local function createWindow(windowTitle, windowSubtitle)
     dividerLine.Position = UDim2.new(0, 120, 0, 30)
     dividerLine.Size = UDim2.new(1, -120, 0, 1)
 
-    -- Vertical line for the tab section
     local tabDivider = Instance.new("Frame")
     tabDivider.Name = "TabDivider"
     tabDivider.Parent = rectangle
@@ -1332,7 +1169,6 @@ local function createWindow(windowTitle, windowSubtitle)
     tabDivider.Position = UDim2.new(0, 120, 0, 0)
     tabDivider.Size = UDim2.new(0, 1, 1, 0)
 
-    -- Container for the tabs on the left
     local tabContainer = Instance.new("ScrollingFrame")
     tabContainer.Name = "TabContainer"
     tabContainer.Parent = rectangle
@@ -1345,7 +1181,6 @@ local function createWindow(windowTitle, windowSubtitle)
     tabContainer.ScrollBarImageColor3 = themeColor
     tabContainer.CanvasSize = UDim2.new(0, 0, 0, 0)
 
-    -- Layout to stack the tabs vertically
     local tabLayout = Instance.new("UIListLayout")
     tabLayout.Parent = tabContainer
     tabLayout.FillDirection = Enum.FillDirection.Vertical
@@ -1353,11 +1188,9 @@ local function createWindow(windowTitle, windowSubtitle)
     tabLayout.Padding = UDim.new(0, 5)
     tabLayout.SortOrder = Enum.SortOrder.LayoutOrder
     
-    -- ### NEW: Add padding to align items with centered layout ###
     local tabListPadding = Instance.new("UIPadding")
     tabListPadding.Parent = tabContainer
     tabListPadding.PaddingTop = UDim.new(0, 5)
-    -- This padding makes the (1, -10) sized buttons appear centered
     tabListPadding.PaddingLeft = UDim.new(0, 5)
     tabListPadding.PaddingRight = UDim.new(0, 5)
 
@@ -1371,7 +1204,6 @@ local function createWindow(windowTitle, windowSubtitle)
         tabContainer.ScrollBarImageColor3 = newColor
     end)
 
-    -- ### NEW: Container for the content pages ###
     local contentContainer = Instance.new("Frame")
     contentContainer.Name = "ContentContainer"
     contentContainer.Parent = rectangle
@@ -1380,415 +1212,18 @@ local function createWindow(windowTitle, windowSubtitle)
     contentContainer.Position = UDim2.new(0, 121, 0, 35)
     contentContainer.Size = UDim2.new(1, -121, 1, -35)
 
-    -- ### NEW: Add padding to the content area ###
     local contentPadding = Instance.new("UIPadding")
     contentPadding.Parent = contentContainer
     contentPadding.PaddingLeft = UDim.new(0, 5)
     contentPadding.PaddingRight = UDim.new(0, 5)
-    contentPadding.PaddingBottom = UDim.new(0, 5) -- ### FIXED: Was UDim2.new ###
+    contentPadding.PaddingBottom = UDim.new(0, 5)
 
-    -- Return the parts we need to access later
-    return rectangle, tabContainer, contentContainer, titleLabel, subtitleLabel, toggleGui
-end
--- ### END OF createWindow FUNCTION ###
-
--- ### END OF HELPER FUNCTIONS ###
--- ##################################################################
-
-
--- ### ALL OTHER UI ELEMENTS CREATED BELOW ###
-
--- ### Call the new function to create the window ###
-local rectangle, tabContainer, contentContainer, titleLabel, subtitleLabel, toggleGui = createWindow("BlindHubOfficial", "discord.gg/BlindHub")
-
--- ### Create the tabs ###
--- ### MODIFIED: Now capturing the 'tabButton' as the second return value ###
-local mainPage, mainTabButton = createTab("Main", tabContainer, contentContainer)
-local combatPage, combatTabButton = createTab("Combat", tabContainer, contentContainer)
-local visualsPage, visualsTabButton = createTab("Visuals", tabContainer, contentContainer)
-local vehiclePage, vehicleTabButton = createTab("Vehicle", tabContainer, contentContainer)
-local playerPage, playerTabButton = createTab("Player", tabContainer, contentContainer)
-local miscPage, miscTabButton = createTab("Misc", tabContainer, contentContainer)
-local settingsPage, settingsTabButton = createTab("Settings", tabContainer, contentContainer)
-
--- ### NEW: EXAMPLE of how to add logos ###
--- ### You can change these IDs, positions, and sizes, or delete them ###
---
--- addLogoToTab(mainTabButton, "rbxassetid://12345678", UDim2.new(0, 8, 0.5, 0), UDim2.new(0, 20, 0, 20))
--- mainTabButton.TextXAlignment = Enum.TextXAlignment.Left
--- mainTabButton:FindFirstChildOfClass("UIPadding").PaddingLeft = UDim.new(0, 34)
---
--- addLogoToTab(combatTabButton, "rbxassetid://12345678", UDim2.new(0, 8, 0.5, 0), UDim2.new(0, 20, 0, 20))
--- combatTabButton.TextXAlignment = Enum.TextXAlignment.Left
--- combatTabButton:FindFirstChildOfClass("UIPadding").PaddingLeft = UDim.new(0, 34)
---
--- ### Example of a centered logo with NO text ###
--- addLogoToTab(settingsTabButton, "rbxassetid://13133223122", UDim2.fromScale(0.5, 0.5), UDim2.new(0, 22, 0, 22))
--- settingsTabButton.Text = ""
-
-
--- ### NEW: Section 1 ("Self Section") - Big Section ###
--- ### REVERTED: Removed logoId ###
-local selfSection, selfContent = createBigSection(mainPage, "Self Section", bigPos)
-
--- ### NEW: EXAMPLE of adding logo to section ###
--- addLogoToSection(selfSection, "rbxassetid://87654321")
--- local selfTitle = selfSection:FindFirstChild("SectionTitle")
--- selfTitle.Position = UDim2.new(0, 31, 0, 5)
--- selfTitle.Size = UDim2.new(1, -41, 0, 16)
-
-
--- ### MODIFIED: Add 8 toggles and 1 dropdown ###
-local autoFarmToggle, getAutoFarm, setAutoFarm = createToggleButton(selfContent, "Auto Farm", currentSettings.AutoFarm)
-local infJumpToggle, getInfJump, setInfJump = createToggleButton(selfContent, "Infinite Jump", currentSettings.InfiniteJump)
-local espToggle, getESP, setESP = createToggleButton(selfContent, "ESP", currentSettings.ESP)
-local godModeToggle, getGodMode, setGodMode = createToggleButton(selfContent, "God Mode", currentSettings.GodMode)
-local noclipToggle, getNoclip, setNoclip = createToggleButton(selfContent, "Noclip", currentSettings.Noclip)
-local infStaminaToggle, getInfStamina, setInfStamina = createToggleButton(selfContent, "Infinite Stamina", currentSettings.InfiniteStamina)
-local autoRobToggle, getAutoRob, setAutoRob = createToggleButton(selfContent, "Auto Rob", currentSettings.AutoRob)
-local autoPickupToggle, getAutoPickup, setAutoPickup = createToggleButton(selfContent, "Auto Pickup", currentSettings.AutoPickup)
-
--- This is the static (non-updating) dropdown for body parts
-local partOptions = {"Head", "Torso", "HumanoidRootPart", "UpperTorso", "LowerTorso", "Right Leg", "Left Leg", "Right Arm", "Left Arm"}
-local partDropdown, getSelectedPart, _, partDropdownChanged, setSelectPart = createDropdown(selfContent, "Select Part", partOptions, rectangle)
-setSelectPart(currentSettings.SelectPart)
-
--- ### NEW: PLAYER DROPDOWN ###
-local playerDropdown, getSelectedPlayer, updatePlayerDropdown, playerDropdownChanged, setSelectPlayer = createPlayerDropdown(selfContent, rectangle)
-setSelectPlayer(currentSettings.SelectPlayer)
-
--- ### NEW: Test Notification Button ###
-local testNotifButton = createButton(selfContent, "Test Notification")
-testNotifButton.MouseButton1Click:Connect(function()
-    createNotification("BlindHub", "This is a test notification!")
-end)
-
--- ### NEW: Text Box ###
-local walkspeedBox, getWalkspeed, setWalkspeed = createTextBox(selfContent, "Enter Walkspeed...", currentSettings.Walkspeed, rectangle) -- ### PASS rectangle ###
-
--- ### NEW: Section 2 ("Combat Section") - Small Section ###
--- ### REVERTED: Removed logoId ###
-local combatSection, combatContent = createSmallSection(mainPage, "Combat Section", smallTopPos)
-
--- ### MODIFIED: Add 8 buttons to Combat Section ###
-createButton(combatContent, "Kill Aura")
-createButton(combatContent, "Trigger Bot")
-createButton(combatContent, "Aimbot Part")
-createButton(combatContent, "Infinite Ammo")
-createButton(combatContent, "No Recoil")
-createButton(combatContent, "No Spread")
-createButton(combatContent, "Rapid Fire")
-createButton(combatContent, "Aimlock")
-
-
--- ### NEW: Section 3 ("Visuals Section") - Small Section ###
--- ### REVERTED: Removed logoId ###
-local visualsSection, visualsContent = createSmallSection(mainPage, "Visuals Section", smallBottomPos)
-
--- ### MODIFIED: Add 6 sliders to Visuals Section ###
-local chamsSlider, getChams, chamsChanged, setChams = createSlider(visualsContent, "Chams", 0, 10, currentSettings.Chams, rectangle) -- ### PASS rectangle ###
-local wallhackSlider, getWallhack, wallhackChanged, setWallhack = createSlider(visualsContent, "Wallhack Opacity", 0, 100, currentSettings.WallhackOpacity, rectangle) -- ### PASS rectangle ###
-local skyRedSlider, getSkyRed, skyRedChanged, setSkyRed = createSlider(visualsContent, "Sky Color Red", 0, 255, currentSettings.SkyColorRed, rectangle) -- ### PASS rectangle ###
-local skyGreenSlider, getSkyGreen, skyGreenChanged, setSkyGreen = createSlider(visualsContent, "Sky Color Green", 0, 255, currentSettings.SkyColorGreen, rectangle) -- ### PASS rectangle ###
-local skyBlueSlider, getSkyBlue, skyBlueChanged, setSkyBlue = createSlider(visualsContent, "Sky Color Blue", 0, 255, currentSettings.SkyColorBlue, rectangle) -- ### PASS rectangle ###
-local brightnessSlider, getBrightness, brightnessChanged, setBrightness = createSlider(visualsContent, "Brightness", 0, 5, currentSettings.Brightness, rectangle) -- ### PASS rectangle ###
-
-
--- ### NEW: Link all settings to the currentSettings table ###
-allUIElements = {
-    AutoFarm = setAutoFarm,
-    InfiniteJump = setInfJump,
-    ESP = setESP,
-    GodMode = setGodMode,
-    Noclip = setNoclip,
-    InfiniteStamina = setInfStamina,
-    AutoRob = setAutoRob,
-    AutoPickup = setAutoPickup,
-    SelectPart = setSelectPart,
-    SelectPlayer = setSelectPlayer,
-    Walkspeed = setWalkspeed,
-    Chams = setChams,
-    WallhackOpacity = setWallhack,
-    SkyColorRed = setSkyRed,
-    SkyColorGreen = setSkyGreen,
-    SkyColorBlue = setSkyBlue,
-    Brightness = setBrightness,
-    -- Settings tab elements will be added later
-}
-
--- ##################################################################
--- ### FUNCTION MOVED HERE TO FIX 'nil value' ERROR ###
--- ##################################################################
-local function createSettingsTab(settingsPage, rectangle)
-    -- ### START OF CHANGED SECTION: Declare local getters ###
-    local getToggleKey, setToggleKey
-    local getWatermarkTrans, setWatermarkTrans, transChanged
-    local getWatermarkFontSize, setWatermarkFontSize, fontSizeChanged
-    local getWatermarkX, setWatermarkX, xPosChanged
-    local getWatermarkY, setWatermarkY, yPosChanged
-    local getTheme, setTheme
-    -- ### END OF CHANGED SECTION ###
-    
-    -- ### MODIFIED: Create two sections ###
-    -- ### REVERTED: Removed logoId ###
-    local uiSettingsSection, uiSettingsContent = createBigSection(settingsPage, "UI Settings", bigPos)
-    local themeSection, themeContent = createBigSection(settingsPage, "Theme", smallTopPos) -- Use smallTopPos for the right-side pos
-    
-    -- ### Add content to UI Settings Section ###
-    local keybindButton
-    keybindButton, getToggleKey, setToggleKey = createKeybind(uiSettingsContent, "Toggle UI", currentSettings.ToggleKey)
-    allUIElements.ToggleKey = setToggleKey
-    
-    -- ### REMOVED Animated Outline Toggle ###
-    
-    local resetSettingsButton = createButton(uiSettingsContent, "Reset Config")
-    local saveSettingsButton = createButton(uiSettingsContent, "Save Config")
-    local loadSettingsButton = createButton(uiSettingsContent, "Load Config")
-    local unloadButton = createButton(uiSettingsContent, "Unload UI")
-
-    -- ### NEW: Divider for Watermark Settings ###
-    local watermarkDivider = createDivider(uiSettingsContent) -- ### Use new function ###
-    
-    -- ### NEW: Watermark Sliders ###
-    local transparencySlider
-    transparencySlider, getWatermarkTrans, transChanged, setWatermarkTrans = createSlider(uiSettingsContent, "Watermark Transparency", 0, 100, currentSettings.WatermarkTransparency, rectangle) -- ### PASS rectangle ###
-    local fontSizeSlider
-    fontSizeSlider, getWatermarkFontSize, fontSizeChanged, setWatermarkFontSize = createSlider(uiSettingsContent, "Watermark Font Size", 10, 24, currentSettings.WatermarkFontSize, rectangle) -- ### PASS rectangle ###
-    local xPosSlider
-    xPosSlider, getWatermarkX, xPosChanged, setWatermarkX = createSlider(uiSettingsContent, "Watermark X Position", 0, 100, currentSettings.WatermarkX, rectangle) -- ### PASS rectangle ###
-    local yPosSlider
-    yPosSlider, getWatermarkY, yPosChanged, setWatermarkY = createSlider(uiSettingsContent, "Watermark Y Position", 0, 100, currentSettings.WatermarkY, rectangle) -- ### PASS rectangle ###
-
-    -- ### NEW: Connect Watermark Sliders ###
-    transChanged:Connect(function(value) 
-        if watermarkLabel then -- ### ADDED nil check ###
-            watermarkLabel.BackgroundTransparency = value / 100 
-            currentSettings.WatermarkTransparency = value
-        end
-    end)
-    
-    fontSizeChanged:Connect(function(value) 
-        if watermarkLabel then -- ### ADDED nil check ###
-            local size = math.floor(value) 
-            watermarkLabel.TextSize = size 
-            currentSettings.WatermarkFontSize = size
-        end
-    end)
-    
-    xPosChanged:Connect(function(value)
-        if watermarkLabel then -- ### ADDED nil check ###
-            local x = value / 100
-            watermarkLabel.AnchorPoint = Vector2.new(x, watermarkLabel.AnchorPoint.Y)
-            watermarkLabel.Position = UDim2.new(x, 0, watermarkLabel.Position.Y.Scale, 0)
-            currentSettings.WatermarkX = value
-        end
-    end)
-    
-    yPosChanged:Connect(function(value)
-        if watermarkLabel then -- ### ADDED nil check ###
-            local y = value / 100
-            watermarkLabel.AnchorPoint = Vector2.new(watermarkLabel.AnchorPoint.X, y)
-            watermarkLabel.Position = UDim2.new(watermarkLabel.Position.X.Scale, 0, y, 0)
-            currentSettings.WatermarkY = value
-        end
-    end)
-
-    -- ### NEW: Add Watermark Sliders to allUIElements ###
-    allUIElements.WatermarkTransparency = setWatermarkTrans
-    allUIElements.WatermarkFontSize = setWatermarkFontSize
-    allUIElements.WatermarkX = setWatermarkX
-    allUIElements.WatermarkY = setWatermarkY
-
-    -- ### Add content to Theme Section ###
-    local themeNames = {"Blue (Default)", "Red", "Orange", "Light Purple", "Dark Purple", "Yellow", "Dark Green", "Light Green"}
-    
-    local themeColorMap = {
-        ["Blue (Default)"] = Color3.fromRGB(0, 100, 255),
-        ["Red"] = Color3.fromRGB(255, 0, 0),
-        ["Orange"] = Color3.fromRGB(255, 165, 0),
-        ["Light Purple"] = Color3.fromRGB(170, 0, 255),
-        ["Dark Purple"] = Color3.fromRGB(100, 0, 255),
-        ["Yellow"] = Color3.fromRGB(255, 255, 0),
-        ["Dark Green"] = Color3.fromRGB(0, 150, 0),
-        ["Light Green"] = Color3.fromRGB(0, 255, 0)
-    }
-
-    local themeDropdown, _, themeChanged
-    themeDropdown, getTheme, _, themeChanged, setTheme = createDropdown(themeContent, "Select Theme", themeNames, rectangle)
-    allUIElements.Theme = setTheme
-    
-    themeChanged:Connect(function(selectedThemeName)
-        local newColor = themeColorMap[selectedThemeName]
-        if newColor then
-            -- ### We pass titleLabel and subtitleLabel so they can be updated ###
-            setThemeColor(newColor, rectangle:FindFirstChild("TitleLabel"), rectangle:FindFirstChild("SubtitleLabel"))
-            currentSettings.Theme = selectedThemeName
-        end
-    end)
-    
-    -- ### REMOVED Custom Color Picker Button ###
-    
-    -- ### NEW: Settings Button Logic ###
-    
-    unloadButton.MouseButton1Click:Connect(function()
-        mainScreenGui:Destroy()
-        notificationGui:Destroy()
-        if watermarkLabel then watermarkLabel:Destroy() end -- ### ADDED nil check ###
-        if PlayerGui:FindFirstChild("ToggleGui") then PlayerGui:FindFirstChild("ToggleGui"):Destroy() end
-    end)
-    
-    resetSettingsButton.MouseButton1Click:Connect(function()
-        for settingName, defaultValue in pairs(defaultSettings) do
-            local setValueFunc = allUIElements[settingName]
-            if setValueFunc then
-                setValueFunc(defaultValue)
-                currentSettings[settingName] = defaultValue
-            end
-        end
-        -- Reset theme color
-        setThemeColor(themeColorMap[defaultSettings.Theme], rectangle:FindFirstChild("TitleLabel"), rectangle:FindFirstChild("SubtitleLabel"))
-        -- ### REMOVED outline reset code ###
-        createNotification("BlindHub", "Settings reset to default.")
-    end)
-    
-    saveSettingsButton.MouseButton1Click:Connect(function()
-        -- Update settings table one last time
-        currentSettings.AutoFarm = getAutoFarm()
-        currentSettings.InfiniteJump = getInfJump()
-        currentSettings.ESP = getESP()
-        currentSettings.GodMode = getGodMode()
-        currentSettings.Noclip = getNoclip()
-        currentSettings.InfiniteStamina = getInfStamina()
-        currentSettings.AutoRob = getAutoRob()
-        currentSettings.AutoPickup = getAutoPickup()
-        currentSettings.SelectPart = getSelectedPart()
-        currentSettings.SelectPlayer = getSelectedPlayer()
-        currentSettings.Walkspeed = getWalkspeed()
-        currentSettings.Chams = getChams()
-        currentSettings.WallhackOpacity = getWallhack()
-        currentSettings.SkyColorRed = getSkyRed()
-        currentSettings.SkyColorGreen = getSkyGreen()
-        currentSettings.SkyColorBlue = getSkyBlue()
-        currentSettings.Brightness = getBrightness()
-        currentSettings.Theme = getTheme()
-        currentSettings.ToggleKey = getToggleKey().Name -- Save key name as a string
-        -- ### REMOVED AnimatedOutline ###
-        
-        -- ### NEW: Save Watermark Settings ###
-        currentSettings.WatermarkTransparency = getWatermarkTrans()
-        currentSettings.WatermarkFontSize = getWatermarkFontSize()
-        currentSettings.WatermarkX = getWatermarkX()
-        currentSettings.WatermarkY = getWatermarkY()
-        
-        -- Save to file (Executor-specific)
-        if writefile then
-            local success, data = pcall(HttpService.JSONEncode, HttpService, currentSettings)
-            if success then
-                writefile("BlindHubConfig.json", data)
-                createNotification("BlindHub", "Config saved!")
-            else
-                createNotification("BlindHub", "Error saving config.")
-            end
-        else
-            createNotification("BlindHub", "writefile() is not supported.")
-        end
-    end)
-    
-    loadSettingsButton.MouseButton1Click:Connect(function()
-        -- Load from file (Executor-specific)
-        if type(isfile) == "function" and isfile("BlindHubConfig.json") and type(readfile) == "function" then -- ### FIXED: Added type() check ###
-            local success, data = pcall(readfile, "BlindHubConfig.json")
-            if not success then
-                createNotification("BlindHub", "Error reading config file.")
-                return
-            end
-            
-            local loadedSettings
-            success, loadedSettings = pcall(HttpService.JSONDecode, HttpService, data)
-            
-            if not success then
-                createNotification("BlindHub", "Error decoding config file.")
-                return
-            end
-
-            -- Apply all settings
-            for settingName, value in pairs(loadedSettings) do
-                local setValueFunc = allUIElements[settingName]
-                if setValueFunc then
-                    -- ### FIX: Make sure to apply default if a new setting is missing from save file
-                    local valueToSet = value or defaultSettings[settingName]
-                    if valueToSet ~= nil then
-                        setValueFunc(valueToSet)
-                        currentSettings[settingName] = valueToSet
-                    end
-                end
-            end
-            
-            -- Apply theme
-            setThemeColor(themeColorMap[currentSettings.Theme], rectangle:FindFirstChild("TitleLabel"), rectangle:FindFirstChild("SubtitleLabel"))
-            -- ### REMOVED outline load code ###
-            createNotification("BlindHub", "Config loaded!")
-        else
-            createNotification("BlindHub", "No config file found.")
-        end
-    end)
+    -- Return all the parts you need to build your UI
+    return mainScreenGui, rectangle, tabContainer, contentContainer, titleLabel, subtitleLabel, toggleGui
 end
 
--- ### NEW: Settings Page Content ###
-if settingsPage then
-    createSettingsTab(settingsPage, rectangle)
-end
-
-
-print("Draggable rectangle (550x450) with functional tabs created!") -- ### MODIFIED: Updated print ###
-
--- ### MODIFIED: Keybind listener ###
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    
-    if input.KeyCode == currentSettings.ToggleKey then
-        setUIVisible(not mainScreenGui.Enabled) -- ### This now correctly calls the function ###
-    end
-end)
-
---[[
-    -- NOTE: I used 'rectangle.Draggable = true' which is the
-    -- simplest way. If that doesn't work in in your executor,
-    -- we can add the manual dragging code below.
-    -- For now, the simple way is best.
-
-    -- Manual dragging logic (if '.Draggable = true' fails)
-    local isDragging = false
-    local dragStart
-    local startPosition
-    
-    rectangle.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.Trigger then
-            isDragging = true
-            dragStart = input.Position
-            startPosition = rectangle.Position
-        end
-    end)
-    
-    UserInputService.InputChanged:Connect(function(input)
-        if (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) and isDragging then
-            local delta = input.Position - dragStart
-            rectangle.Position = UDim2.new(
-                startPosition.X.Scale,
-                startPosition.X.Offset + delta.X,
-                startPosition.Y.Scale,
-                startPosition.Y.Offset + delta.Y
-            )
-        end
-    end)
-    
-    UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.Touch then
-            isDragging = false
-        end
-    end)
-]]
-
--- ### EXAMPLE of how to create the watermark ###
--- You can call this function whenever you want.
-createWatermark()
+-- ##################################################################
+-- ##################################################################
+-- ###   [  END OF THE UI LIBRARY  ]   ###
+-- ##################################################################
+-- ##################################################################
