@@ -1,19 +1,24 @@
 -- ##################################################################
 -- ##################################################################
 -- ###   [  START OF THE UI LIBRARY  ]   ###
--- ### (Keep all this code. This is your toolkit) ###
+-- ### (This script creates all the functions) ###
 -- ##################################################################
 -- ##################################################################
 
+-- ### Create the main Library table ###
+local Library = {}
+
+-- ### Services ###
 local UserInputService = game:GetService("UserInputService")
 local PlayerGui = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
 local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
-local HttpService = game:GetService("HttpService")
+
+local HttpService_Success, HttpService = pcall(game.GetService, game, "HttpService")
 
 -- ### Global Events & Theme ###
 local CloseAllDropdowns = Instance.new("BindableEvent")
-local themeColor = Color3.fromRGB(0, 100, 255)
+Library.themeColor = Color3.fromRGB(0, 100, 255)
 local ThemeChanged = Instance.new("BindableEvent")
 
 -- ### Global UI State ###
@@ -25,16 +30,14 @@ local activeTextColor = Color3.fromRGB(255, 255, 255) -- Bright white
 local inactiveTextColor = Color3.fromRGB(200, 200, 200) -- Gray-white
 
 -- ### Global Position Definitions ###
--- You can use these in your own script
-local sectionWidth = 208
-local smallSectionHeight = 201
-local gap = 5
-local topY = 2
-local bigPos = UDim2.new(0, 0, 0, topY)
-local smallTopPos = UDim2.new(0, sectionWidth + gap, 0, topY)
-local smallBottomPos = UDim2.new(0, sectionWidth + gap, 0, topY + smallSectionHeight + gap)
+Library.Positions = {
+    Big = UDim2.new(0, 0, 0, 2),
+    SmallTop = UDim2.new(0, 208 + 5, 0, 2),
+    SmallBottom = UDim2.new(0, 208 + 5, 0, 2 + 201 + 5)
+}
 
 -- ### Notification GUI (Separate from Main UI) ###
+-- This is created once and reused
 local notificationGui = Instance.new("ScreenGui")
 notificationGui.Name = "NotificationGui"
 notificationGui.Parent = PlayerGui
@@ -56,15 +59,13 @@ notificationLayout.SortOrder = Enum.SortOrder.LayoutOrder
 notificationLayout.VerticalAlignment = Enum.VerticalAlignment.Bottom
 notificationLayout.Padding = UDim.new(0, 5)
 
-local watermarkGui, watermarkLabel -- Global vars for watermark
-local setUIVisible -- Global var for keybind
 
 -- ##################################################################
 -- ### HELPER FUNCTIONS (THE TOOLKIT)
 -- ##################################################################
 
 --- ### FUNCTION: createNotification ###
-local function createNotification(title, message)
+function Library.createNotification(title, message)
     local notificationFrame = Instance.new("Frame")
     notificationFrame.Name = "Notification"
     notificationFrame.Parent = notificationContainer
@@ -140,23 +141,23 @@ local function createNotification(title, message)
 end
 
 --- ### FUNCTION: createWatermark ###
-local function createWatermark(text, fontSize, transparency, xPos, yPos)
-    -- Destroy old one if it exists
-    if watermarkGui then watermarkGui:Destroy() end
+function Library.createWatermark(text, fontSize, transparency, xPos, yPos)
+    local oldWatermark = PlayerGui:FindFirstChild("WatermarkGui")
+    if oldWatermark then oldWatermark:Destroy() end
 
-    watermarkGui = Instance.new("ScreenGui")
+    local watermarkGui = Instance.new("ScreenGui")
     watermarkGui.Name = "WatermarkGui"
     watermarkGui.Parent = PlayerGui
     watermarkGui.ResetOnSpawn = false
     watermarkGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
-    watermarkLabel = Instance.new("TextLabel")
+    local watermarkLabel = Instance.new("TextLabel")
     watermarkLabel.Name = "WatermarkLabel"
     watermarkLabel.Parent = watermarkGui
     watermarkLabel.Text = text or "My UI"
     watermarkLabel.Font = Enum.Font.SourceSansBold
     watermarkLabel.TextSize = fontSize or 16
-    watermarkLabel.TextColor3 = themeColor
+    watermarkLabel.TextColor3 = Library.themeColor
     watermarkLabel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
     watermarkLabel.BackgroundTransparency = (transparency or 20) / 100
     local initialX = (xPos or 100) / 100
@@ -184,7 +185,7 @@ local function createWatermark(text, fontSize, transparency, xPos, yPos)
 end
 
 --- ### FUNCTION: createSection (Base) ###
-local function createSection(parent, sectionTitle, size, position, extraScrollPadding)
+function Library.createSection(parent, sectionTitle, size, position, extraScrollPadding)
     local sectionFrame = Instance.new("Frame")
     sectionFrame.Name = sectionTitle:gsub("%s+", "") .. "Section"
     sectionFrame.Parent = parent
@@ -232,7 +233,7 @@ local function createSection(parent, sectionTitle, size, position, extraScrollPa
     contentHolder.BorderSizePixel = 0
     contentHolder.ScrollingDirection = Enum.ScrollingDirection.Y
     contentHolder.ScrollBarThickness = 2
-    contentHolder.ScrollBarImageColor3 = themeColor
+    contentHolder.ScrollBarImageColor3 = Library.themeColor
     contentHolder.CanvasSize = UDim2.new(0, 0, 0, 0)
 
     local contentLayout = Instance.new("UIListLayout")
@@ -259,19 +260,19 @@ local function createSection(parent, sectionTitle, size, position, extraScrollPa
 end
 
 --- ### FUNCTION: createBigSection ###
-local function createBigSection(parent, title, position)
+function Library.createBigSection(parent, title, position)
     local size = UDim2.new(0, 208, 1, -2)
-    return createSection(parent, title, size, position, 20)
+    return Library.createSection(parent, title, size, position, 20)
 end
 
 --- ### FUNCTION: createSmallSection ###
-local function createSmallSection(parent, title, position)
+function Library.createSmallSection(parent, title, position)
     local size = UDim2.new(0, 208, 0, 201)
-    return createSection(parent, title, size, position, 20)
+    return Library.createSection(parent, title, size, position, 20)
 end
 
 --- ### FUNCTION: createButton ###
-local function createButton(parent, buttonText)
+function Library.createButton(parent, buttonText)
     local button = Instance.new("TextButton")
     button.Name = buttonText:gsub("%s+", "") .. "Button"
     button.Parent = parent
@@ -308,7 +309,7 @@ local function createButton(parent, buttonText)
 end
 
 --- ### FUNCTION: createToggleButton ###
-local function createToggleButton(parent, buttonText, initialValue)
+function Library.createToggleButton(parent, buttonText, initialValue)
     local toggled = initialValue or false
     local toggleOffColor = Color3.fromRGB(55, 55, 55)
     local handleColor = Color3.fromRGB(255, 255, 255)
@@ -358,7 +359,7 @@ local function createToggleButton(parent, buttonText, initialValue)
 
     local function updateAppearance()
         local targetHandlePos = toggled and UDim2.new(1, -14, 0.5, -6) or UDim2.new(0, 2, 0.5, -6)
-        local targetTrackColor = toggled and themeColor or toggleOffColor
+        local targetTrackColor = toggled and Library.themeColor or toggleOffColor
         local targetTextColor = toggled and textOnColor or textOffColor
 
         TweenService:Create(switchHandle, tweenInfo, {Position = targetHandlePos}):Play()
@@ -386,7 +387,7 @@ local function createToggleButton(parent, buttonText, initialValue)
 end
 
 --- ### FUNCTION: createSlider ###
-local function createSlider(parent, sliderText, minValue, maxValue, initialValue, rectangle)
+function Library.createSlider(parent, sliderText, minValue, maxValue, initialValue, rectangle)
     local currentValue = initialValue or minValue
     local onChanged = Instance.new("BindableEvent")
     
@@ -423,7 +424,7 @@ local function createSlider(parent, sliderText, minValue, maxValue, initialValue
     local progress = Instance.new("TextButton") 
     progress.Name = "ProgressHandle"
     progress.Parent = track
-    progress.BackgroundColor3 = themeColor
+    progress.BackgroundColor3 = Library.themeColor
     progress.BorderSizePixel = 0
     progress.Text = "" 
     progress.Font = Enum.Font.SourceSansBold
@@ -509,7 +510,7 @@ local function createSlider(parent, sliderText, minValue, maxValue, initialValue
 end
 
 --- ### FUNCTION: createTextBox ###
-local function createTextBox(parent, placeholderText, initialValue, rectangle)
+function Library.createTextBox(parent, placeholderText, initialValue, rectangle)
     local textBox = Instance.new("TextBox")
     textBox.Name = placeholderText:gsub("%s+", "") .. "TextBox"
     textBox.Parent = parent
@@ -530,7 +531,7 @@ local function createTextBox(parent, placeholderText, initialValue, rectangle)
     tbCorner.Parent = textBox
 
     local tbStroke = Instance.new("UIStroke")
-    tbStroke.Color = themeColor
+    tbStroke.Color = Library.themeColor
     tbStroke.Thickness = 1
     tbStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     tbStroke.Parent = textBox
@@ -564,7 +565,7 @@ local function createTextBox(parent, placeholderText, initialValue, rectangle)
 end
 
 --- ### FUNCTION: createKeybind ###
-local function createKeybind(parent, text, defaultKey)
+function Library.createKeybind(parent, text, defaultKey)
     local currentKey = defaultKey or Enum.KeyCode.RightShift
     local isListening = false
     
@@ -623,7 +624,7 @@ local function createKeybind(parent, text, defaultKey)
 end
 
 --- ### FUNCTION: createDivider ###
-local function createDivider(parent)
+function Library.createDivider(parent)
     local divider = Instance.new("Frame")
     divider.Name = "Divider"
     divider.Parent = parent
@@ -634,7 +635,7 @@ local function createDivider(parent)
 end
 
 --- ### FUNCTION: addLogoToTab ###
-local function addLogoToTab(tabButton, logoId, position, size)
+function Library.addLogoToTab(tabButton, logoId, position, size)
     if not tabButton then return nil end
     
     local logo = Instance.new("ImageLabel")
@@ -661,7 +662,7 @@ local function addLogoToTab(tabButton, logoId, position, size)
 end
 
 --- ### FUNCTION: addLogoToSection ###
-local function addLogoToSection(sectionFrame, logoId, position, size)
+function Library.addLogoToSection(sectionFrame, logoId, position, size)
     if not sectionFrame then return nil end
     
     local titleLabel = sectionFrame:FindFirstChild("SectionTitle")
@@ -681,7 +682,7 @@ local function addLogoToSection(sectionFrame, logoId, position, size)
 end
 
 --- ### FUNCTION: createDropdown ###
-local function createDropdown(parent, dropdownText, optionsList, rectangle)
+function Library.createDropdown(parent, dropdownText, optionsList, rectangle)
     local currentOptions = optionsList or {}
     local selectedValue = currentOptions[1] or "Select..."
     local isOpen = false
@@ -737,7 +738,7 @@ local function createDropdown(parent, dropdownText, optionsList, rectangle)
     dropdownList.ZIndex = 100 
     dropdownList.BorderSizePixel = 0
     dropdownList.ScrollBarThickness = 2
-    dropdownList.ScrollBarImageColor3 = themeColor
+    dropdownList.ScrollBarImageColor3 = Library.themeColor
     dropdownList.ClipsDescendants = true
     
     local listLayout = Instance.new("UIListLayout")
@@ -894,7 +895,7 @@ local function createDropdown(parent, dropdownText, optionsList, rectangle)
 end
 
 --- ### FUNCTION: createPlayerDropdown ###
-local function createPlayerDropdown(parent, rectangle)
+function Library.createPlayerDropdown(parent, rectangle)
     local function getPlayerNames()
         local names = {"Select..."}
         for _, p in ipairs(Players:GetPlayers()) do
@@ -903,7 +904,7 @@ local function createPlayerDropdown(parent, rectangle)
         return names
     end
     
-    local dropdown, getSelected, updateOptions, changedEvent, setValue = createDropdown(parent, "Select Player", getPlayerNames(), rectangle)
+    local dropdown, getSelected, updateOptions, changedEvent, setValue = Library.createDropdown(parent, "Select Player", getPlayerNames(), rectangle)
     
     Players.PlayerAdded:Connect(function(player) 
         updateOptions(getPlayerNames()) 
@@ -917,18 +918,27 @@ local function createPlayerDropdown(parent, rectangle)
 end
 
 --- ### FUNCTION: setThemeColor ###
-local function setThemeColor(newColor, titleLabel, subtitleLabel)
-    themeColor = newColor -- Update the global variable
+function Library.setThemeColor(newColor, titleLabel, subtitleLabel)
+    Library.themeColor = newColor -- Update the global variable
     
     if titleLabel then titleLabel.TextColor3 = newColor end
     if subtitleLabel then subtitleLabel.TextColor3 = newColor end
-    if watermarkLabel then watermarkLabel.TextColor3 = newColor end
     
+    -- Find and update the watermark
+    local watermarkGui = PlayerGui:FindFirstChild("WatermarkGui")
+    if watermarkGui then
+        local watermarkLabel = watermarkGui:FindFirstChild("WatermarkLabel")
+        if watermarkLabel then
+            watermarkLabel.TextColor3 = newColor
+        end
+    end
+    
+    -- Fire the event to update all sliders, toggles, and scrollbars
     ThemeChanged:Fire(newColor)
 end
 
 --- ### FUNCTION: createTab ###
-local function createTab(tabName, tabContainer, contentContainer)
+function Library.createTab(tabName, tabContainer, contentContainer)
     local tabButton = Instance.new("TextButton")
     tabButton.Name = tabName .. "Tab"
     tabButton.Parent = tabContainer
@@ -971,12 +981,12 @@ local function createTab(tabName, tabContainer, contentContainer)
         if selectedTab then
             selectedTab.BackgroundColor3 = inactiveColor
             selectedTab.TextColor3 = inactiveTextColor
-            pages[selectedTab].Visible = false
+            if pages[selectedTab] then pages[selectedTab].Visible = false end
         end
 
         tabButton.BackgroundColor3 = activeColor
         tabButton.TextColor3 = activeTextColor
-        pages[tabButton].Visible = true
+        if pages[tabButton] then pages[tabButton].Visible = true end
 
         selectedTab = tabButton
     end)
@@ -986,19 +996,15 @@ end
 
 
 --- ### FUNCTION: createWindow (The Main Function) ###
--- This is now a generic function. It returns all the key parts.
-local function createWindow(windowTitle, windowSubtitle)
-    -- Check for old UIs and remove them
+function Library.createWindow(windowTitle, windowSubtitle)
     if PlayerGui:FindFirstChild("MainUI") then PlayerGui:FindFirstChild("MainUI"):Destroy() end
     if PlayerGui:FindFirstChild("ToggleGui") then PlayerGui:FindFirstChild("ToggleGui"):Destroy() end
 
-    -- Create a new ScreenGui to hold everything
     local mainScreenGui = Instance.new("ScreenGui")
     mainScreenGui.Name = "MainUI"
     mainScreenGui.Parent = PlayerGui
     mainScreenGui.ResetOnSpawn = false
 
-    -- Create the main UI rectangle
     local rectangle = Instance.new("Frame")
     rectangle.Name = "Rectangle"
     rectangle.Parent = mainScreenGui
@@ -1022,14 +1028,13 @@ local function createWindow(windowTitle, windowSubtitle)
     windowOutline.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     windowOutline.Parent = rectangle
 
-    -- Add the main title text (uses the function arguments)
     local titleLabel = Instance.new("TextLabel")
     titleLabel.Name = "TitleLabel"
     titleLabel.Parent = rectangle
-    titleLabel.Text = windowTitle or "Window" -- No longer hard-coded
+    titleLabel.Text = windowTitle or "Window"
     titleLabel.Font = Enum.Font.SourceSansBold
     titleLabel.TextSize = 16
-    titleLabel.TextColor3 = themeColor
+    titleLabel.TextColor3 = Library.themeColor
     titleLabel.TextXAlignment = Enum.TextXAlignment.Left
     titleLabel.BackgroundTransparency = 1
     titleLabel.Active = false
@@ -1039,17 +1044,16 @@ local function createWindow(windowTitle, windowSubtitle)
     local subtitleLabel = Instance.new("TextLabel")
     subtitleLabel.Name = "SubtitleLabel"
     subtitleLabel.Parent = rectangle
-    subtitleLabel.Text = windowSubtitle or "" -- No longer hard-coded
+    subtitleLabel.Text = windowSubtitle or ""
     subtitleLabel.Font = Enum.Font.SourceSans
     subtitleLabel.TextSize = 12
-    subtitleLabel.TextColor3 = themeColor
+    subtitleLabel.TextColor3 = Library.themeColor
     subtitleLabel.TextXAlignment = Enum.TextXAlignment.Left
     subtitleLabel.BackgroundTransparency = 1
     subtitleLabel.Active = false
     subtitleLabel.Position = UDim2.new(0, 15, 0, 27)
     subtitleLabel.Size = UDim2.new(0, 200, 0, 16)
 
-    -- Toggle Buttons GUI (Separate)
     local toggleGui = Instance.new("ScreenGui")
     toggleGui.Name = "ToggleGui"
     toggleGui.Parent = PlayerGui
@@ -1075,7 +1079,7 @@ local function createWindow(windowTitle, windowSubtitle)
     ocCorner.Parent = openCloseButton
 
     local ocStroke = Instance.new("UIStroke")
-    ocStroke.Color = themeColor
+    ocStroke.Color = Library.themeColor
     ocStroke.Thickness = 1
     ocStroke.Parent = openCloseButton
 
@@ -1098,7 +1102,7 @@ local function createWindow(windowTitle, windowSubtitle)
     lockCorner.Parent = lockButton
 
     local lockStroke = Instance.new("UIStroke")
-    lockStroke.Color = themeColor
+    lockStroke.Color = Library.themeColor
     lockStroke.Thickness = 1
     lockStroke.Parent = lockButton
     
@@ -1107,7 +1111,8 @@ local function createWindow(windowTitle, windowSubtitle)
         lockStroke.Color = newColor
     end)
     
-    setUIVisible = function(isVisible)
+    -- This function is now local to the window
+    local function setUIVisible(isVisible)
         mainScreenGui.Enabled = isVisible
         if isVisible then
             openCloseButton.Text = "Close"
@@ -1126,10 +1131,10 @@ local function createWindow(windowTitle, windowSubtitle)
         
         if isDraggable then
             lockButton.Text = "Lock"
-            createNotification("UI", "UI Unlocked")
+            Library.createNotification("UI", "UI Unlocked")
         else
             lockButton.Text = "Unlock"
-            createNotification("UI", "UI Locked")
+            Library.createNotification("UI", "UI Locked")
         end
     end)
 
@@ -1148,8 +1153,9 @@ local function createWindow(windowTitle, windowSubtitle)
     closeButton.MouseButton1Click:Connect(function()
         CloseAllDropdowns:Fire()
         mainScreenGui:Destroy()
-        notificationGui:Destroy()
-        if watermarkGui then watermarkGui:Destroy() end
+        -- notificationGui is persistent, so don't destroy it
+        local watermark = PlayerGui:FindFirstChild("WatermarkGui")
+        if watermark then watermark:Destroy() end
         toggleGui:Destroy()
     end)
 
@@ -1178,7 +1184,7 @@ local function createWindow(windowTitle, windowSubtitle)
     tabContainer.Size = UDim2.new(0, 120, 1, -51)
     tabContainer.ScrollingDirection = Enum.ScrollingDirection.Y
     tabContainer.ScrollBarThickness = 2
-    tabContainer.ScrollBarImageColor3 = themeColor
+    tabContainer.ScrollBarImageColor3 = Library.themeColor
     tabContainer.CanvasSize = UDim2.new(0, 0, 0, 0)
 
     local tabLayout = Instance.new("UIListLayout")
@@ -1219,9 +1225,14 @@ local function createWindow(windowTitle, windowSubtitle)
     contentPadding.PaddingBottom = UDim.new(0, 5)
 
     -- Return all the parts you need to build your UI
-    return mainScreenGui, rectangle, tabContainer, contentContainer, titleLabel, subtitleLabel, toggleGui
+    return mainScreenGui, rectangle, tabContainer, contentContainer, titleLabel, subtitleLabel, toggleGui, setUIVisible
 end
 
+-- ### Make the Library global ###
+-- This makes it accessible to other scripts
+_G.Library = Library
+
+print("UI Library Loaded.")
 -- ##################################################################
 -- ##################################################################
 -- ###   [  END OF THE UI LIBRARY  ]   ###
